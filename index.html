@@ -4,11 +4,61 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#1a1710">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Painel Loja">
 <title>Painel da Loja</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- FIREBASE SDK COMPAT -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyD7LJ04XVan15AEnR3YuypBJ0wvVoXQnbw",
+  authDomain:        "loja-app-1bcbf.firebaseapp.com",
+  databaseURL:       "https://loja-app-1bcbf-default-rtdb.firebaseio.com",
+  projectId:         "loja-app-1bcbf",
+  storageBucket:     "loja-app-1bcbf.firebasestorage.app",
+  messagingSenderId: "341672438140",
+  appId:             "1:341672438140:web:0ecef53aac99d97fe61cf9"
+};
+
+let db = null;
+let fbReady = false;
+
+try {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db = firebase.database();
+  fbReady = true;
+  console.log("✅ Firebase conectado");
+} catch(e) {
+  console.warn("⚠️ Firebase falhou, usando localStorage:", e);
+}
+
+window.DB = {
+  async set(path, data) {
+    if (fbReady) await db.ref(path).set(data);
+    else localStorage.setItem('fb_'+path.replace(/\//g,'_'), JSON.stringify(data));
+  },
+  async get(path) {
+    if (fbReady) { const s=await db.ref(path).once('value'); return s.exists()?s.val():null; }
+    else { const r=localStorage.getItem('fb_'+path.replace(/\//g,'_')); return r?JSON.parse(r):null; }
+  },
+  async update(path, data) {
+    if (fbReady) await db.ref(path).update(data);
+    else { const c=await window.DB.get(path)||{}; await window.DB.set(path,{...c,...data}); }
+  },
+  listen(path, cb) {
+    if (fbReady) db.ref(path).on('value', s=>cb(s.exists()?s.val():null));
+    else { cb(JSON.parse(localStorage.getItem('fb_'+path.replace(/\//g,'_'))||'null')); setInterval(async()=>cb(await window.DB.get(path)),5000); }
+  },
+  isCloud: ()=>fbReady,
+};
+window.dispatchEvent(new Event('fb-ready'));
+</script>
+
 <style>
 :root{
   --bg:#f5f2eb;--bg2:#ede9e0;--ink:#1a1710;--ink2:#4a4640;--ink3:#8a8580;
@@ -23,7 +73,6 @@ body{background:var(--bg);color:var(--ink);font-family:'Syne',sans-serif;min-hei
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
 
-/* LOGIN */
 #loginScreen{position:fixed;inset:0;z-index:999;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;}
 #loginScreen h1{font-size:2rem;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:4px;}
 #loginScreen .sub{font-size:.72rem;color:rgba(255,255,255,.4);letter-spacing:2px;text-transform:uppercase;margin-bottom:36px;}
@@ -35,8 +84,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opa
 .vc .vr{font-size:.67rem;color:rgba(255,255,255,.4);margin-top:3px;text-transform:uppercase;letter-spacing:1.5px;}
 .mgr-btn{margin-top:26px;background:transparent;border:1.5px solid rgba(255,255,255,.2);border-radius:10px;padding:10px 22px;font-family:'Syne',sans-serif;font-size:.77rem;font-weight:700;color:rgba(255,255,255,.5);cursor:pointer;letter-spacing:1px;text-transform:uppercase;transition:all .2s;}
 .mgr-btn:hover{border-color:var(--amber);color:var(--amberl);}
+.sync-info{font-size:.68rem;color:rgba(255,255,255,.3);margin-top:14px;text-align:center;}
 
-/* PIN */
 .modal-bg{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.65);align-items:center;justify-content:center;}
 .modal-bg.show{display:flex;}
 .modal{background:var(--bg);border-radius:18px;padding:26px 22px;width:min(340px,92vw);text-align:center;}
@@ -52,7 +101,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opa
 .mbtn2.pri{background:var(--ink);color:var(--bg);}
 .mbtn2.pri:hover{background:var(--amber);}
 
-/* APP */
 .app{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:0 14px 100px;}
 .hdr{padding:18px 0 14px;border-bottom:2px solid var(--ink);margin-bottom:16px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;}
 .hdr-l h1{font-size:clamp(1.4rem,4vw,2rem);font-weight:800;letter-spacing:-1px;line-height:1;}
@@ -62,13 +110,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opa
 .vendor-chip{display:flex;align-items:center;gap:6px;background:var(--ink);color:var(--bg);border-radius:20px;padding:5px 11px 5px 5px;cursor:pointer;border:none;font-family:'Syne',sans-serif;font-size:.72rem;font-weight:700;}
 .vendor-chip .dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.7rem;}
 .vendor-chip:hover{background:var(--amber);}
-
-/* SYNC INDICATOR */
 .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s ease-in-out infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
 .last-save{font-size:.6rem;color:var(--ink3);font-family:'JetBrains Mono',monospace;}
+.cloud-badge{font-size:.6rem;padding:2px 7px;border-radius:99px;font-weight:700;background:#deeaf8;color:#1a4b8a;}
 
-/* EXPORT BANNER — só aparece para vendedores */
 .export-banner{background:var(--ink);color:var(--bg);border-radius:12px;padding:12px 15px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .export-banner .txt{flex:1;min-width:160px;}
 .export-banner .txt strong{font-size:.82rem;display:block;margin-bottom:2px;}
@@ -86,7 +132,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opa
 .panel.active{display:block;}
 @keyframes fi{from{opacity:0;transform:translateY(4px);}to{opacity:1;}}
 
-/* META CARD */
 .meta-card{background:var(--ink);color:var(--bg);border-radius:16px;padding:17px;margin-bottom:13px;position:relative;overflow:hidden;}
 .meta-card::after{content:'META';position:absolute;right:-10px;top:50%;transform:translateY(-50%) rotate(90deg);font-size:4rem;font-weight:800;color:rgba(255,255,255,.04);pointer-events:none;}
 .meta-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px;flex-wrap:wrap;gap:7px;}
@@ -108,7 +153,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opa
 .minp:focus{border-color:var(--amberl);}
 .mbtn{background:var(--amber);border:none;border-radius:7px;padding:4px 10px;font-family:'Syne',sans-serif;font-size:.68rem;font-weight:700;color:#fff;cursor:pointer;}
 
-/* FORMS */
 .card{background:var(--bg);border:1.5px solid var(--border);border-radius:13px;padding:13px 14px;margin-bottom:9px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px;}
 @media(max-width:480px){.grid2{grid-template-columns:1fr;}}
@@ -123,13 +167,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opa
 .inp:focus{border-color:var(--amber);background:var(--bg);}
 select.inp{cursor:pointer;}
 
-/* BADGES */
 .badge{font-size:.55rem;font-weight:700;padding:2px 5px;border-radius:4px;letter-spacing:1px;white-space:nowrap;}
 .ba{background:var(--amber);color:#fff;}.bb{background:var(--green);color:#fff;}.bc{background:var(--ink3);color:#fff;}.bn{background:var(--border);color:var(--ink2);}
 .bpix{background:#00a86b;color:#fff;}.bdin{background:var(--amber);color:#fff;}.bbol{background:var(--blue);color:#fff;}
 .bpend{background:var(--red);color:#fff;}.bpago{background:var(--green);color:#fff;}
 
-/* BUTTONS */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;transition:all .15s;}
 .btn-p{background:var(--ink);color:var(--bg);padding:10px 13px;font-size:.79rem;width:100%;}
 .btn-p:hover{background:var(--amber);}
@@ -141,14 +183,12 @@ select.inp{cursor:pointer;}
 .btn-ghost{background:transparent;color:var(--ink3);border:1.5px solid var(--border);padding:9px;font-family:'Syne',sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.5px;text-transform:uppercase;width:100%;border-radius:8px;cursor:pointer;transition:all .2s;margin-top:7px;}
 .btn-ghost:hover{border-color:var(--red);color:var(--red);}
 
-/* MISC */
 .preview{background:var(--amberp);border:1px solid #e8c070;border-radius:8px;padding:7px 10px;font-size:.72rem;color:var(--ink2);font-family:'JetBrains Mono',monospace;margin:4px 0 7px;}
 .preview .hi{color:var(--amber);font-weight:600;}
 .err-b{background:var(--redl);border:1px solid #f0b0aa;border-radius:7px;padding:6px 10px;font-size:.7rem;color:var(--red);margin-bottom:6px;}
 .empty{text-align:center;padding:22px 12px;color:var(--ink3);font-size:.76rem;}
 .empty .ico{font-size:1.5rem;margin-bottom:5px;}
 
-/* DASHBOARD */
 .ag{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px;}
 @media(max-width:460px){.ag{grid-template-columns:1fr;}}
 .ac{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:9px;}
@@ -161,7 +201,6 @@ select.inp{cursor:pointer;}
 .bm{height:3px;background:var(--border);border-radius:99px;margin-top:2px;overflow:hidden;}
 .bmf{height:100%;background:var(--amber);border-radius:99px;}
 
-/* BUILDER */
 .builder-wrap{border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:7px;}
 .builder-search{padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg2);}
 .builder-search input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Syne',sans-serif;font-size:.77rem;color:var(--ink);outline:none;}
@@ -175,7 +214,6 @@ select.inp{cursor:pointer;}
 .brow-qty{width:38px;text-align:center;background:var(--bg);border:1.5px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.81rem;padding:3px 0;outline:none;color:var(--ink);}
 .brow-qty:focus{border-color:var(--amber);}
 
-/* PEDIDO */
 .ped-card{background:var(--bg);border:1.5px solid var(--border);border-radius:11px;padding:11px 12px;margin-bottom:7px;}
 .ped-top{display:flex;align-items:flex-start;justify-content:space-between;gap:7px;flex-wrap:wrap;}
 .ped-cli{font-weight:700;font-size:.82rem;}
@@ -187,7 +225,6 @@ select.inp{cursor:pointer;}
 .ped-val strong{color:var(--ink);}
 .ped-actions{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;}
 
-/* A RECEBER */
 .rec-card{border-radius:11px;padding:11px 12px;margin-bottom:7px;border:1.5px solid var(--border);}
 .rec-pend{background:var(--redl);border-color:#f0b0aa;}
 .rec-parc{background:var(--amberp);border-color:#e8c070;}
@@ -212,7 +249,6 @@ select.inp{cursor:pointer;}
 .saldo-track{flex:1;min-width:60px;height:4px;background:rgba(0,0,0,.1);border-radius:99px;overflow:hidden;}
 .saldo-fill{height:100%;background:var(--green);border-radius:99px;transition:width .4s;}
 
-/* CLIENTES */
 .cli-card{background:var(--bg);border:1.5px solid var(--border);border-radius:11px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
 .cli-av{width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.75rem;flex-shrink:0;}
 .cli-info{flex:1;min-width:0;}
@@ -221,7 +257,6 @@ select.inp{cursor:pointer;}
 .cli-stats{text-align:right;font-size:.65rem;font-family:'JetBrains Mono',monospace;color:var(--ink3);}
 .cli-stats .sv{color:var(--green);font-weight:600;font-size:.76rem;display:block;}
 
-/* CURVAS */
 .cv-row{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bg2);font-size:.75rem;}
 .cv-row:last-child{border-bottom:none;}
 .cdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
@@ -236,7 +271,6 @@ select.inp{cursor:pointer;}
 .hist-body{display:none;margin-top:6px;}
 .hist-body.show{display:block;}
 
-/* PLANILHA */
 .tbl-wrap{overflow-x:auto;border:1.5px solid var(--border);border-radius:11px;}
 table.plan{width:100%;border-collapse:collapse;font-size:.72rem;min-width:660px;}
 table.plan th{background:var(--ink);color:var(--bg);text-align:left;padding:7px 8px;font-size:.58rem;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;font-weight:700;}
@@ -247,7 +281,6 @@ table.plan tr:hover td{background:var(--bg2);}
 .vneg{color:var(--ink3);}.vpos{color:var(--green);font-weight:600;}
 .pcode{font-family:'JetBrains Mono',monospace;font-size:.61rem;color:var(--ink3);background:var(--bg2);padding:1px 4px;border-radius:4px;}
 
-/* CATEGORIAS */
 .cat-list{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;}
 .cat-item{display:flex;align-items:center;gap:5px;background:var(--amberp);border:1px solid #e8c070;border-radius:8px;padding:5px 10px;}
 .cat-item span{font-size:.78rem;font-weight:600;color:var(--amber);}
@@ -258,7 +291,6 @@ table.plan tr:hover td{background:var(--bg2);}
 .cat-add-row input:focus{border-color:var(--amber);}
 .cat-add-btn{background:var(--amber);border:none;border-radius:8px;padding:7px 13px;font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;color:#fff;cursor:pointer;white-space:nowrap;}
 
-/* GERÊNCIA */
 .mgr-banner{background:linear-gradient(135deg,var(--amber),#b36a00);color:#fff;border-radius:13px;padding:13px 15px;margin-bottom:13px;display:flex;align-items:center;gap:11px;}
 .mgr-banner .ico{font-size:1.5rem;}
 .mgr-banner h2{font-size:.88rem;font-weight:800;margin-bottom:1px;}
@@ -273,18 +305,6 @@ table.plan tr:hover td{background:var(--bg2);}
 .vc-stat .val{font-family:'JetBrains Mono',monospace;font-size:1.15rem;font-weight:700;}
 .vc-stat .sub{font-size:.64rem;color:var(--ink3);margin-top:2px;}
 
-/* IMPORT AREA */
-.import-zone{border:2px dashed var(--border);border-radius:12px;padding:20px;text-align:center;margin-bottom:12px;cursor:pointer;transition:all .2s;}
-.import-zone:hover,.import-zone.drag{border-color:var(--amber);background:var(--amberp);}
-.import-zone .ico{font-size:2rem;margin-bottom:6px;}
-.import-zone p{font-size:.78rem;color:var(--ink3);}
-.import-zone strong{color:var(--ink);}
-.imported-files{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
-.imp-file{display:flex;align-items:center;gap:8px;background:var(--greenl);border:1px solid #90d4aa;border-radius:8px;padding:8px 11px;font-size:.75rem;}
-.imp-file .fn{flex:1;font-weight:600;color:var(--green);}
-.imp-file .fd{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--ink3);}
-
-/* NOTA */
 .nota-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:13px;}
 .nota-modal.show{display:flex;}
 .nota-box{background:#fff;border-radius:14px;width:min(400px,100%);max-height:90vh;overflow-y:auto;padding:20px;}
@@ -295,13 +315,11 @@ table.plan tr:hover td{background:var(--bg2);}
 .nota-img{background:var(--green);color:#fff;}
 .nota-close{background:var(--bg2);color:var(--ink3);}
 
-/* EDIT MODAL */
 .edit-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.6);align-items:flex-start;justify-content:center;padding:13px;overflow-y:auto;}
 .edit-modal.show{display:flex;}
 .edit-box{background:var(--bg);border-radius:14px;width:min(500px,100%);padding:18px;margin:auto;}
 .edit-box h2{font-size:.95rem;font-weight:800;margin-bottom:13px;}
 
-/* IA */
 .ia-box{border:1.5px solid var(--border);border-radius:15px;overflow:hidden;}
 .ia-hdr{background:var(--ink);color:var(--bg);padding:11px 14px;display:flex;align-items:center;gap:7px;}
 .ia-hdr .dot{width:6px;height:6px;border-radius:50%;background:var(--amberl);}
@@ -326,7 +344,6 @@ table.plan tr:hover td{background:var(--bg2);}
 .ia-send:hover{background:var(--amber);}
 .ia-send:disabled{background:var(--border);cursor:not-allowed;}
 
-/* PWA */
 .pwa-bar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:300;background:var(--ink);color:var(--bg);padding:12px 16px;align-items:center;gap:10px;box-shadow:0 -4px 24px rgba(0,0,0,.25);}
 .pwa-bar.show{display:flex;}
 .pwa-bar p{flex:1;font-size:.74rem;line-height:1.4;}
@@ -343,6 +360,7 @@ table.plan tr:hover td{background:var(--bg2);}
   <p class="sub">Selecione o vendedor</p>
   <div class="vendor-cards" id="vendorCards"></div>
   <button class="mgr-btn" onclick="openPinModal()">⚙ Gerência</button>
+  <div class="sync-info" id="syncInfo"></div>
 </div>
 
 <!-- PIN -->
@@ -374,8 +392,9 @@ table.plan tr:hover td{background:var(--bg2);}
     <div class="hdr-r">
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
         <div style="display:flex;align-items:center;gap:5px">
-          <span class="sync-dot" id="syncDot"></span>
-          <span class="last-save" id="lastSave">Salvando…</span>
+          <span class="sync-dot" id="syncDot" style="display:none"></span>
+          <span class="last-save" id="lastSave"></span>
+          <span class="cloud-badge" id="cloudBadge" style="display:none">☁ Firebase</span>
         </div>
       </div>
       <div class="hdr-clock" id="clock"></div>
@@ -386,13 +405,12 @@ table.plan tr:hover td{background:var(--bg2);}
     </div>
   </div>
 
-  <!-- BANNER EXPORTAR (só vendedores) -->
   <div class="export-banner" id="exportBanner" style="display:none">
     <div class="txt">
-      <strong>📤 Exportar dados do dia</strong>
-      <span>Exporte no final do dia e envie pelo WhatsApp para a gerência</span>
+      <strong>📤 Exportar dados (backup)</strong>
+      <span>Salve uma cópia local dos seus dados</span>
     </div>
-    <button class="btn-export" onclick="exportarDados()">Exportar agora</button>
+    <button class="btn-export" onclick="exportarDados()">Exportar</button>
   </div>
 
   <div class="tabs" id="tabBar"></div>
@@ -543,22 +561,7 @@ table.plan tr:hover td{background:var(--bg2);}
 
   <!-- GERÊNCIA -->
   <div class="panel" id="panel-gerencia">
-    <div class="mgr-banner"><div class="ico">📊</div><div><h2>Visão Gerencial</h2><p>Importe os arquivos dos vendedores para atualizar</p></div></div>
-
-    <!-- IMPORTAR -->
-    <div class="card">
-      <div class="form-t">📥 Importar dados dos vendedores</div>
-      <p style="font-size:.75rem;color:var(--ink2);margin-bottom:12px;line-height:1.6">
-        Peça aos vendedores que exportem os dados e enviem o arquivo pelo WhatsApp. Toque abaixo para selecionar o arquivo recebido.
-      </p>
-      <div class="import-zone" id="importZone" onclick="document.getElementById('importFile').click()">
-        <div class="ico">📂</div>
-        <p><strong>Toque para selecionar o arquivo</strong><br>Arquivo .json enviado pelo vendedor</p>
-      </div>
-      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarDados(this)">
-      <div class="imported-files" id="importedFiles"></div>
-    </div>
-
+    <div class="mgr-banner"><div class="ico">📊</div><div><h2>Visão Gerencial</h2><p id="mgrSyncStatus">Dados em tempo real via Firebase</p></div></div>
     <div class="mgr-filter" id="mgrFilter"></div>
     <div class="vendor-compare" id="mgrCompare"></div>
     <div class="ag">
@@ -628,356 +631,178 @@ table.plan tr:hover td{background:var(--bg2);}
   </div>
 </div>
 
-<!-- PWA BAR -->
+<!-- PWA -->
 <div class="pwa-bar" id="pwaBar">
-  <p>📲 <strong>Instalar app</strong><br>Adicione à tela inicial para usar offline</p>
+  <p>📲 <strong>Instalar app</strong><br>Adicione à tela inicial</p>
   <button class="pwa-install-btn" id="pwaBtn">Instalar</button>
   <button class="pwa-dismiss-btn" onclick="dismissPWA()">Agora não</button>
 </div>
 
 <script>
-// ════════════════════════════════════════════
-// CONFIG
-// ════════════════════════════════════════════
+// ════════════ CONFIG ════════════
 const VENDORS = [
   {id:'v1', nome:'Vendedor 1', cor:'#d4820a'},
   {id:'v2', nome:'Vendedor 2', cor:'#1a6b3a'},
 ];
-const MGR_PIN  = '1234'; // altere aqui
-const APP_VER  = 'loja_v4';
+const MGR_PIN = '1234';
+const APP_VER = 'loja_v4';
 
-// ════════════════════════════════════════════
-// STATE
-// ════════════════════════════════════════════
-let currentVendor = null;
-let isMgr         = false;
-let mgrFilter     = 'all';
-let produtos      = [];
-let categorias    = [];
-let nextProd      = 900;
-let vd            = {};   // dados por vendedor {v1:{...}, v2:{...}}
-let mgrImported   = {};   // dados importados na sessão da gerência
-let editingPedId  = null;
-let editBuilderQtys = {};
-let notaPedData   = null;
-let builderQtys   = {};
-let iaHist        = [];
-let saveTimer     = null;
+// ════════════ STATE ════════════
+let currentVendor=null, isMgr=false, mgrFilter='all';
+let produtos=[], categorias=[], nextProd=900;
+let vd={}, editingPedId=null, editBuilderQtys={}, notaPedData=null, builderQtys={}, iaHist=[];
 
-// ════════════════════════════════════════════
-// PERSIST — localStorage automático
-// ════════════════════════════════════════════
-function defVd(){
-  return{META:2000,clientes:[],pedidos:[],contas:[],historico:[],vendidoQty:{},nextCli:1,nextPed:1,nextCon:1,custosFixos:0};
+// ════════════ PERSIST ════════════
+function defVd(){ return{META:2000,clientes:[],pedidos:[],contas:[],historico:[],vendidoQty:{},nextCli:1,nextPed:1,nextCon:1,custosFixos:0}; }
+
+async function loadGlobal(){
+  const cats=await window.DB.get('global/categorias');
+  categorias=cats?(Array.isArray(cats)?cats:Object.values(cats)):['Elétrico','Hidráulico','Ferragem','Construção','Ferramentas','Iluminação','Outros'];
+  const prods=await window.DB.get('global/produtos');
+  if(prods){ produtos=Array.isArray(prods)?prods:Object.values(prods); }
+  else{ produtos=getDefaultProducts(); await window.DB.set('global/produtos',produtos); }
+  const np=await window.DB.get('global/nextProd');
+  nextProd=np||900;
+  for(const v of VENDORS){
+    const raw=await window.DB.get('vendedores/'+v.id);
+    vd[v.id]=raw||defVd();
+  }
 }
 
-// salva TUDO automaticamente — chamado após qualquer mudança
-function save(){
-  try{
-    // dados globais (produtos, categorias) — compartilhados
-    localStorage.setItem(APP_VER+'_global', JSON.stringify({produtos, categorias, nextProd}));
-    // dados do vendedor logado
-    if(currentVendor && !isMgr){
-      localStorage.setItem(APP_VER+'_'+currentVendor.id, JSON.stringify(vd[currentVendor.id]));
-    }
-    // dados da gerência importados
-    if(isMgr){
-      localStorage.setItem(APP_VER+'_mgr_imported', JSON.stringify(mgrImported));
-    }
-    updateSaveIndicator(true);
-  }catch(e){ updateSaveIndicator(false); }
+async function saveProds(){ await window.DB.set('global/produtos',produtos); await window.DB.set('global/nextProd',nextProd); }
+async function saveCats(){ await window.DB.set('global/categorias',categorias); }
+async function saveVd(vid){ await window.DB.set('vendedores/'+vid, vd[vid]); }
+
+function setupListeners(vid){
+  window.DB.listen('vendedores/'+vid, data=>{ if(!data)return; vd[vid]=data; refreshCurrentPanel(); updateSaveIndicator(); });
+  window.DB.listen('global/produtos', data=>{ if(!data)return; produtos=Array.isArray(data)?data:Object.values(data); renderBuilder();renderCadLista();renderPlanilha(); });
+  window.DB.listen('global/categorias', data=>{ if(!data)return; categorias=Array.isArray(data)?data:Object.values(data); renderCatList();populateCatSelect(); });
+  VENDORS.filter(v=>v.id!==vid).forEach(v=>{ window.DB.listen('vendedores/'+v.id, data=>{ if(!data)return; vd[v.id]=data; if(isMgr)renderGerencia(); }); });
 }
 
-// agenda save com debounce (não sobrecarrega em digitação rápida)
-function scheduleSave(){
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(save, 400);
+function setupMgrListeners(){
+  VENDORS.forEach(v=>{ window.DB.listen('vendedores/'+v.id, data=>{ if(!data)return; vd[v.id]=data; renderGerencia(); }); });
+  window.DB.listen('global/produtos', data=>{ if(!data)return; produtos=Array.isArray(data)?data:Object.values(data); });
 }
 
-function updateSaveIndicator(ok){
-  const dot  = document.getElementById('syncDot');
-  const lbl  = document.getElementById('lastSave');
+function refreshCurrentPanel(){ const a=document.querySelector('.panel.active'); if(!a)return; goTab(a.id.replace('panel-','')); }
+
+function updateSaveIndicator(){
+  const dot=document.getElementById('syncDot'); const lbl=document.getElementById('lastSave');
   if(!dot||!lbl)return;
-  const now  = new Date();
-  const h    = now.getHours().toString().padStart(2,'0');
-  const m    = now.getMinutes().toString().padStart(2,'0');
-  const s    = now.getSeconds().toString().padStart(2,'0');
-  dot.style.background  = ok ? 'var(--green)' : 'var(--red)';
-  lbl.textContent       = ok ? `Salvo às ${h}:${m}:${s}` : 'Erro ao salvar';
+  const n=new Date(); const t=`${n.getHours().toString().padStart(2,'0')}:${n.getMinutes().toString().padStart(2,'0')}:${n.getSeconds().toString().padStart(2,'0')}`;
+  dot.style.background='var(--green)'; lbl.textContent=`Salvo às ${t}`;
 }
 
-function load(){
-  // global
-  try{
-    const g=JSON.parse(localStorage.getItem(APP_VER+'_global')||'{}');
-    categorias = g.categorias||['Elétrico','Hidráulico','Ferragem','Construção','Ferramentas','Iluminação','Outros'];
-    produtos   = g.produtos  ||getDefaultProducts();
-    nextProd   = g.nextProd  ||900;
-  }catch(e){ categorias=defaultCats(); produtos=getDefaultProducts(); }
-
-  // vendedores
-  VENDORS.forEach(v=>{
-    try{
-      const raw=localStorage.getItem(APP_VER+'_'+v.id);
-      vd[v.id]=raw?JSON.parse(raw):defVd();
-    }catch(e){ vd[v.id]=defVd(); }
-  });
-
-  // dados importados pela gerência
-  try{
-    const mi=localStorage.getItem(APP_VER+'_mgr_imported');
-    mgrImported=mi?JSON.parse(mi):{};
-  }catch(e){ mgrImported={}; }
-}
-
-function defaultCats(){
-  return['Elétrico','Hidráulico','Ferragem','Construção','Ferramentas','Iluminação','Outros'];
-}
-
-// ════════════════════════════════════════════
-// EXPORTAR / IMPORTAR
-// ════════════════════════════════════════════
 function exportarDados(){
   if(!currentVendor||isMgr)return;
-  const payload = {
-    _meta: {
-      versao: APP_VER,
-      vendedor: currentVendor.id,
-      vendedorNome: currentVendor.nome,
-      exportadoEm: new Date().toISOString(),
-      exportadoEmLeg: new Date().toLocaleString('pt-BR'),
-    },
-    dados: vd[currentVendor.id],
-    produtos,
-    categorias,
-    nextProd,
-  };
-  const json = JSON.stringify(payload, null, 2);
-  const blob = new Blob([json], {type:'application/json'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  const d    = new Date();
-  const nome = `${currentVendor.nome.replace(/\s/g,'_')}_${d.getDate().toString().padStart(2,'0')}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getFullYear()}.json`;
-  a.href=url; a.download=nome; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),2000);
-  // feedback
-  const btn=document.querySelector('.btn-export');
-  if(btn){ btn.textContent='✓ Exportado!'; btn.style.background='var(--greenl)'; btn.style.color='var(--green)'; setTimeout(()=>{btn.textContent='Exportar agora';btn.style.background='';btn.style.color='';},2000); }
+  const payload={_meta:{versao:APP_VER,vendedor:currentVendor.id,vendedorNome:currentVendor.nome,exportadoEm:new Date().toISOString()},dados:vd[currentVendor.id],produtos,categorias,nextProd};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  const d=new Date(); a.href=url; a.download=`${currentVendor.nome.replace(/\s/g,'_')}_${d.getDate().toString().padStart(2,'0')}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getFullYear()}.json`;
+  a.click(); setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 
-function importarDados(input){
-  const file=input.files[0]; if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const payload=JSON.parse(e.target.result);
-      if(!payload._meta||!payload.dados){alert('Arquivo inválido. Use apenas os arquivos exportados pelo app.');return;}
-      const vid   = payload._meta.vendedor;
-      const vNome = payload._meta.vendedorNome;
-      const data  = payload._meta.exportadoEmLeg||payload._meta.exportadoEm;
-      // salva no mgrImported e também em vd para o painel funcionar
-      mgrImported[vid]={...payload.dados, _importedAt:data, _nome:vNome};
-      vd[vid]={...payload.dados};
-      // atualiza produtos/categorias globais se o arquivo tiver mais recentes
-      if(payload.produtos?.length>produtos.length){
-        produtos=payload.produtos;
-        categorias=payload.categorias||categorias;
-        nextProd=payload.nextProd||nextProd;
-      }
-      save();
-      // mostra arquivo importado
-      const list=document.getElementById('importedFiles');
-      const existing=document.getElementById('imp-'+vid);
-      const html=`<div class="imp-file" id="imp-${vid}"><span style="font-size:1.1rem">✅</span><span class="fn">${vNome}</span><span class="fd">Importado: ${data}</span></div>`;
-      if(existing)existing.outerHTML=html;
-      else list.insertAdjacentHTML('beforeend',html);
-      renderGerencia();
-      input.value='';
-    }catch(err){ alert('Erro ao ler arquivo: '+err.message); }
-  };
-  reader.readAsText(file);
-}
-
-// drag and drop na zona de importação
-document.addEventListener('DOMContentLoaded',()=>{
-  const zone=document.getElementById('importZone');
-  if(!zone)return;
-  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
-  zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
-  zone.addEventListener('drop',e=>{
-    e.preventDefault(); zone.classList.remove('drag');
-    const file=e.dataTransfer.files[0];
-    if(file){ const inp=document.getElementById('importFile'); const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files; importarDados(inp); }
-  });
-});
-
-// ════════════════════════════════════════════
-// HELPERS
-// ════════════════════════════════════════════
-const fmt    = v=>'R$ '+v.toFixed(2).replace('.',',');
-const mg     = p=>p.venda-p.custo;
-const mgPct  = p=>((mg(p)/p.venda)*100).toFixed(0);
-const today  = ()=>new Date().toISOString().split('T')[0];
-const fmtD   = d=>{ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}/${m}/${y}`; };
-const ini    = n=>n.trim().split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-const D      = ()=>vd[currentVendor.id];
-
+// ════════════ HELPERS ════════════
+const fmt=v=>'R$ '+v.toFixed(2).replace('.',',');
+const mg=p=>p.venda-p.custo;
+const mgPct=p=>((mg(p)/p.venda)*100).toFixed(0);
+const today=()=>new Date().toISOString().split('T')[0];
+const fmtD=d=>{ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}/${m}/${y}`; };
+const ini=n=>n.trim().split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const D=()=>vd[currentVendor.id];
 function pgBadge(p){ return p==='pix'?'<span class="badge bpix">PIX</span>':p==='dinheiro'?'<span class="badge bdin">Dinheiro</span>':'<span class="badge bbol">Boleto</span>'; }
 function pgLabel(p){ return p==='pix'?'Pix':p==='dinheiro'?'Dinheiro':'Boleto'; }
 function saldoConta(c){ return Math.max(0,c.valor-(c.pagamentos||[]).reduce((s,p)=>s+p.valor,0)); }
-
 function calcABC(pedArr){
   const rec={}; produtos.forEach(p=>rec[p.id]=0);
   pedArr.forEach(ped=>ped.itens.forEach(it=>{ rec[it.prodId]=(rec[it.prodId]||0)+it.venda*it.qty; }));
   const total=Object.values(rec).reduce((a,b)=>a+b,0); if(!total)return{};
-  const sorted=Object.entries(rec).sort((a,b)=>b[1]-a[1]);
-  let acum=0,cv={};
+  const sorted=Object.entries(rec).sort((a,b)=>b[1]-a[1]); let acum=0,cv={};
   for(const[id,r]of sorted){ if(!r){cv[id]='novo';continue;} acum+=r; cv[id]=acum/total<=.80?'A':acum/total<=.95?'B':'C'; }
   return cv;
 }
 function cvTag(c){ return c==='A'?'<span class="badge ba">A</span>':c==='B'?'<span class="badge bb">B</span>':c==='C'?'<span class="badge bc">C</span>':'<span class="badge bn">Novo</span>'; }
 
-// ════════════════════════════════════════════
-// CATEGORIAS
-// ════════════════════════════════════════════
-function renderCatList(){
-  const el=document.getElementById('catList'); if(!el)return;
-  el.innerHTML=categorias.map((c,i)=>`<div class="cat-item"><span>${c}</span><button onclick="delCategoria(${i})">✕</button></div>`).join('');
-}
-function populateCatSelect(){
-  const el=document.getElementById('cadSeg'); if(!el)return;
-  const prev=el.value;
-  el.innerHTML=categorias.map(c=>`<option value="${c}">${c}</option>`).join('');
-  if(prev)el.value=prev;
-}
-function addCategoria(){
-  const inp=document.getElementById('catInput'); const nome=inp.value.trim();
-  if(!nome||categorias.includes(nome))return;
-  categorias.push(nome); inp.value='';
-  renderCatList(); populateCatSelect(); scheduleSave();
-}
-function delCategoria(i){
-  if(produtos.some(p=>p.segmento===categorias[i])){alert(`Categoria em uso por produtos.`);return;}
-  if(!confirm(`Excluir "${categorias[i]}"?`))return;
-  categorias.splice(i,1); renderCatList(); populateCatSelect(); scheduleSave();
-}
+// ════════════ CATEGORIAS ════════════
+function renderCatList(){ const el=document.getElementById('catList'); if(!el)return; el.innerHTML=categorias.map((c,i)=>`<div class="cat-item"><span>${c}</span><button onclick="delCategoria(${i})">✕</button></div>`).join(''); }
+function populateCatSelect(){ const el=document.getElementById('cadSeg'); if(!el)return; const prev=el.value; el.innerHTML=categorias.map(c=>`<option value="${c}">${c}</option>`).join(''); if(prev)el.value=prev; }
+async function addCategoria(){ const inp=document.getElementById('catInput'); const nome=inp.value.trim(); if(!nome||categorias.includes(nome))return; categorias.push(nome); inp.value=''; await saveCats(); renderCatList();populateCatSelect(); }
+async function delCategoria(i){ if(produtos.some(p=>p.segmento===categorias[i])){alert(`Categoria em uso.`);return;} if(!confirm(`Excluir "${categorias[i]}"?`))return; categorias.splice(i,1); await saveCats(); renderCatList();populateCatSelect(); }
 
-// ════════════════════════════════════════════
-// LOGIN / LOGOUT
-// ════════════════════════════════════════════
-function renderLogin(){
-  document.getElementById('vendorCards').innerHTML=VENDORS.map(v=>`
-    <div class="vc" onclick="loginAs('${v.id}')">
-      <div class="av" style="background:${v.cor}">${ini(v.nome)}</div>
-      <div class="vn">${v.nome}</div>
-      <div class="vr">Vendedor</div>
-    </div>`).join('');
-}
-
-function loginAs(id){
-  currentVendor=VENDORS.find(v=>v.id===id); isMgr=false;
-  if(!vd[id])vd[id]=defVd();
-  initBuilder(); enterApp();
-}
-function loginMgr(){
-  currentVendor={id:'mgr',nome:'Gerência',cor:'#d4820a'}; isMgr=true;
-  enterApp();
-}
-
+// ════════════ LOGIN ════════════
+function renderLogin(){ document.getElementById('vendorCards').innerHTML=VENDORS.map(v=>`<div class="vc" onclick="loginAs('${v.id}')"><div class="av" style="background:${v.cor}">${ini(v.nome)}</div><div class="vn">${v.nome}</div><div class="vr">Vendedor</div></div>`).join(''); }
+async function loginAs(id){ currentVendor=VENDORS.find(v=>v.id===id); isMgr=false; if(!vd[id])vd[id]=defVd(); initBuilder(); enterApp(); setupListeners(id); }
+function loginMgr(){ currentVendor={id:'mgr',nome:'Gerência',cor:'#d4820a'}; isMgr=true; enterApp(); setupMgrListeners(); }
 function enterApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appShell').style.display='block';
   buildTabs();
-  document.getElementById('hdrTitle').textContent =isMgr?'Gerência':currentVendor.nome;
-  document.getElementById('hdrSub').textContent   =isMgr?'Visão consolidada':'Gestão comercial';
+  document.getElementById('hdrTitle').textContent=isMgr?'Gerência':currentVendor.nome;
+  document.getElementById('hdrSub').textContent=isMgr?'Visão consolidada':'Gestão comercial';
   document.getElementById('chipDot').style.background=currentVendor.cor;
-  document.getElementById('chipDot').textContent  =ini(currentVendor.nome);
-  document.getElementById('chipName').textContent =isMgr?'Gerência':currentVendor.nome;
+  document.getElementById('chipDot').textContent=ini(currentVendor.nome);
+  document.getElementById('chipName').textContent=isMgr?'Gerência':currentVendor.nome;
   document.getElementById('exportBanner').style.display=isMgr?'none':'flex';
   document.getElementById('syncDot').style.display=isMgr?'none':'inline-block';
   document.getElementById('lastSave').style.display=isMgr?'none':'inline';
-  if(!isMgr){
-    document.getElementById('metaInp').value    =D().META||2000;
-    document.getElementById('custosFixos').value=D().custosFixos||0;
-    updateSaveIndicator(true);
-  }
+  document.getElementById('cloudBadge').style.display=fbReady?'inline':'none';
+  if(!isMgr){ document.getElementById('metaInp').value=D().META||2000; document.getElementById('custosFixos').value=D().custosFixos||0; updateSaveIndicator(); }
   goTab(isMgr?'gerencia':'dash');
 }
+function logout(){ currentVendor=null;isMgr=false;iaHist=[]; document.getElementById('appShell').style.display='none'; document.getElementById('loginScreen').style.display='flex'; document.getElementById('iaMsgs').innerHTML='<div class="msg ast">Olá! 👋 Sou sua consultora de vendas. Pode perguntar!</div>'; }
 
-function logout(){
-  currentVendor=null;isMgr=false;iaHist=[];
-  document.getElementById('appShell').style.display='none';
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('iaMsgs').innerHTML='<div class="msg ast">Olá! 👋 Sou sua consultora de vendas. Pode perguntar!</div>';
-}
-
-// ════════════════════════════════════════════
-// PIN
-// ════════════════════════════════════════════
+// ════════════ PIN ════════════
 function openPinModal(){ document.getElementById('pinModal').classList.add('show'); [0,1,2,3].forEach(i=>document.getElementById('p'+i).value=''); document.getElementById('pinErr').textContent=''; document.getElementById('p0').focus(); }
 function closePinModal(){ document.getElementById('pinModal').classList.remove('show'); }
 function pinNext(i){ if(document.getElementById('p'+i).value&&i<3)document.getElementById('p'+(i+1)).focus(); }
 function pinKey(e,i){ if(e.key==='Backspace'&&!document.getElementById('p'+i).value&&i>0)document.getElementById('p'+(i-1)).focus(); if(e.key==='Enter')checkPin(); }
-function checkPin(){
-  const pin=[0,1,2,3].map(i=>document.getElementById('p'+i).value).join('');
-  if(pin===MGR_PIN){closePinModal();loginMgr();}
-  else{document.getElementById('pinErr').textContent='PIN incorreto.';[0,1,2,3].forEach(i=>document.getElementById('p'+i).value='');document.getElementById('p0').focus();}
-}
+function checkPin(){ const pin=[0,1,2,3].map(i=>document.getElementById('p'+i).value).join(''); if(pin===MGR_PIN){closePinModal();loginMgr();}else{document.getElementById('pinErr').textContent='PIN incorreto.';[0,1,2,3].forEach(i=>document.getElementById('p'+i).value='');document.getElementById('p0').focus();} }
 
-// ════════════════════════════════════════════
-// TABS
-// ════════════════════════════════════════════
+// ════════════ TABS ════════════
 const VENDOR_TABS=[{id:'dash',lbl:'Dashboard'},{id:'pedidos',lbl:'Pedidos'},{id:'receber',lbl:'A Receber'},{id:'clientes',lbl:'Clientes'},{id:'curvas',lbl:'Curvas ABC'},{id:'planilha',lbl:'Planilha'},{id:'cadastro',lbl:'Cadastro'},{id:'ia',lbl:'IA'}];
 const MGR_TABS=[{id:'gerencia',lbl:'⚙ Gerência',mgr:true},{id:'ia',lbl:'IA'}];
-function buildTabs(){
-  const tabs=isMgr?MGR_TABS:VENDOR_TABS;
-  document.getElementById('tabBar').innerHTML=tabs.map(t=>`<button class="tab${t.mgr?' mgr-tab':''}" onclick="goTab('${t.id}',this)">${t.lbl}</button>`).join('');
-}
+function buildTabs(){ const tabs=isMgr?MGR_TABS:VENDOR_TABS; document.getElementById('tabBar').innerHTML=tabs.map(t=>`<button class="tab${t.mgr?' mgr-tab':''}" onclick="goTab('${t.id}',this)">${t.lbl}</button>`).join(''); }
 function goTab(name,btn){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('panel-'+name)?.classList.add('active');
   if(btn)btn.classList.add('active');
-  else{const t=[...document.querySelectorAll('.tab')].find(t=>t.getAttribute('onclick')?.includes("'"+name+"'"));if(t)t.classList.add('active');}
+  else{ const t=[...document.querySelectorAll('.tab')].find(t=>t.getAttribute('onclick')?.includes("'"+name+"'")); if(t)t.classList.add('active'); }
   if(name==='pedidos'){refreshPedCli();renderBuilder();renderListaPedidos();}
-  if(name==='receber') renderListaReceber();
+  if(name==='receber')renderListaReceber();
   if(name==='clientes')renderClientesLista();
-  if(name==='curvas')  renderCurvas();
+  if(name==='curvas')renderCurvas();
   if(name==='planilha')renderPlanilha();
   if(name==='cadastro'){renderCadLista();renderCatList();populateCatSelect();}
-  if(name==='dash')    recalc();
+  if(name==='dash')recalc();
   if(name==='gerencia')renderGerencia();
 }
 
-// ════════════════════════════════════════════
-// META / RECALC
-// ════════════════════════════════════════════
-function setMeta(){ const v=parseFloat(document.getElementById('metaInp').value); if(v>0){D().META=v;scheduleSave();recalc();} }
-function recalc(){
+// ════════════ META/RECALC ════════════
+async function setMeta(){ const v=parseFloat(document.getElementById('metaInp').value); if(v>0){D().META=v;await saveVd(currentVendor.id);recalc();} }
+async function recalc(){
   if(isMgr)return;
-  const d=D();
-  const cf   =parseFloat(document.getElementById('custosFixos').value)||0; d.custosFixos=cf;
-  const fat  =d.pedidos.reduce((s,p)=>s+p.receitaTotal,0);
+  const d=D(); const cf=parseFloat(document.getElementById('custosFixos').value)||0; d.custosFixos=cf;
+  const fat=d.pedidos.reduce((s,p)=>s+p.receitaTotal,0);
   const lucro=d.pedidos.reduce((s,p)=>s+p.lucroTotal,0)-cf;
-  const pend =d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0);
-  const pct  =Math.min(100,Math.max(0,(lucro/d.META)*100));
-  document.getElementById('fatVal').textContent  =fmt(fat);
+  const pend=d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0);
+  const pct=Math.min(100,Math.max(0,(lucro/d.META)*100));
+  document.getElementById('fatVal').textContent=fmt(fat);
   document.getElementById('metaDisp').textContent=fmt(d.META);
   document.getElementById('faltaVal').textContent=lucro>=d.META?'✓ Batida!':fmt(d.META-lucro);
-  document.getElementById('pBar').style.width    =pct+'%';
-  document.getElementById('pBar').className      ='prog-bar'+(lucro>=d.META?' done':'');
-  document.getElementById('pPct').textContent    =pct.toFixed(0)+'%';
-  document.getElementById('pLucro').textContent  =fmt(lucro);
-  document.getElementById('pPed').textContent    =d.pedidos.length;
-  document.getElementById('pCF').textContent     =fmt(cf);
-  document.getElementById('pAR').textContent     =fmt(pend);
-  scheduleSave();
+  document.getElementById('pBar').style.width=pct+'%';
+  document.getElementById('pBar').className='prog-bar'+(lucro>=d.META?' done':'');
+  document.getElementById('pPct').textContent=pct.toFixed(0)+'%';
+  document.getElementById('pLucro').textContent=fmt(lucro);
+  document.getElementById('pPed').textContent=d.pedidos.length;
+  document.getElementById('pCF').textContent=fmt(cf);
+  document.getElementById('pAR').textContent=fmt(pend);
+  await saveVd(currentVendor.id);
   renderDash();
 }
-
 function renderDash(){
-  if(isMgr)return;
-  const d=D(); const cv=calcABC(d.pedidos);
+  if(isMgr)return; const d=D(); const cv=calcABC(d.pedidos);
   const byL=produtos.map(p=>({nome:p.nome,l:d.pedidos.reduce((s,ped)=>s+ped.itens.filter(it=>it.prodId===p.id).reduce((ss,it)=>ss+mg(p)*it.qty,0),0)})).sort((a,b)=>b.l-a.l).filter(x=>x.l>0);
   const maxL=byL[0]?.l||1;
   document.getElementById('dTopProd').innerHTML=byL.slice(0,5).map((x,i)=>`<div class="ri"><span class="rn">${i+1}</span><div style="flex:1"><div class="rnm">${x.nome}</div><div class="bm"><div class="bmf" style="width:${(x.l/maxL*100).toFixed(0)}%"></div></div></div><span class="rv">${fmt(x.l)}</span></div>`).join('')||'<div class="empty"><div class="ico">📦</div>Sem vendas</div>';
@@ -986,515 +811,173 @@ function renderDash(){
   document.getElementById('dTopCli').innerHTML=byC.slice(0,5).map((x,i)=>`<div class="ri"><span class="rn">${i+1}</span><div style="flex:1"><div class="rnm">${x.nome}</div><div class="bm"><div class="bmf" style="width:${(x.r/maxR*100).toFixed(0)}%"></div></div></div><span class="rv">${fmt(x.r)}</span></div>`).join('')||'<div class="empty"><div class="ico">👤</div>Sem dados</div>';
   const cva=produtos.filter(p=>cv[p.id]==='A');
   document.getElementById('dCurvaA').innerHTML=cva.length?cva.map(p=>`<div class="ri"><span class="rn" style="color:var(--amber)">A</span><span class="rnm">${p.nome}</span><span class="rv" style="color:var(--ink3)">${p.codigo}</span></div>`).join(''):'<div class="empty"><div class="ico">📊</div>Registre pedidos</div>';
-  const hj=today();
-  const prox=d.contas.filter(c=>c.status==='pend'||c.status==='parc').sort((a,b)=>a.venc.localeCompare(b.venc)).slice(0,5);
+  const hj=today(); const prox=d.contas.filter(c=>c.status==='pend'||c.status==='parc').sort((a,b)=>a.venc.localeCompare(b.venc)).slice(0,5);
   document.getElementById('dVenc').innerHTML=prox.length?prox.map(r=>`<div class="ri"><span class="rn" style="color:${r.venc<hj?'var(--red)':'var(--ink3)'};font-size:.58rem">${fmtD(r.venc)}</span><span class="rnm">${r.cliNome}</span><span class="rv">${fmt(saldoConta(r))}</span></div>`).join(''):'<div class="empty"><div class="ico">✅</div>Nada a vencer</div>';
 }
 
-// ════════════════════════════════════════════
-// PEDIDOS
-// ════════════════════════════════════════════
+// ════════════ PEDIDOS ════════════
 function initBuilder(){ builderQtys={}; produtos.forEach(p=>builderQtys[p.id]=0); }
 function renderBuilder(){
   const q=(document.getElementById('builderSearch')?.value||'').toLowerCase();
   const filtered=produtos.filter(p=>p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q));
-  document.getElementById('builderList').innerHTML=filtered.map(p=>`
-    <div class="brow">
-      <div class="brow-info"><div class="brow-name">${p.nome}</div><div class="brow-code">${p.codigo}${p.segmento?' · '+p.segmento:''}</div></div>
-      <span class="brow-price">${fmt(p.venda)}</span>
-      <input class="brow-qty" type="number" min="0" value="${builderQtys[p.id]||0}" id="bq-${p.id}" oninput="builderQtys['${p.id}']=parseInt(this.value)||0;updatePedPrev()">
-    </div>`).join('');
+  document.getElementById('builderList').innerHTML=filtered.map(p=>`<div class="brow"><div class="brow-info"><div class="brow-name">${p.nome}</div><div class="brow-code">${p.codigo}${p.segmento?' · '+p.segmento:''}</div></div><span class="brow-price">${fmt(p.venda)}</span><input class="brow-qty" type="number" min="0" value="${builderQtys[p.id]||0}" id="bq-${p.id}" oninput="builderQtys['${p.id}']=parseInt(this.value)||0;updatePedPrev()"></div>`).join('');
   updatePedPrev();
 }
-function updatePedPrev(){
-  let receita=0,itens=[];
-  produtos.forEach(p=>{ const q=builderQtys[p.id]||0; if(q>0){receita+=p.venda*q;itens.push(`${p.codigo}×${q}`);}});
-  const prev=document.getElementById('pedPreview');
-  prev.innerHTML=itens.length?`<div class="preview">Total <span class="hi">${fmt(receita)}</span> · ${itens.length} sku(s)</div>`:'';
-}
+function updatePedPrev(){ let receita=0,itens=[]; produtos.forEach(p=>{ const q=builderQtys[p.id]||0; if(q>0){receita+=p.venda*q;itens.push(`${p.codigo}×${q}`);}});const prev=document.getElementById('pedPreview');prev.innerHTML=itens.length?`<div class="preview">Total <span class="hi">${fmt(receita)}</span> · ${itens.length} sku(s)</div>`:''; }
 function refreshPedCli(){
   const sel=document.getElementById('pedCli'); if(!sel)return;
   const prev=sel.value;
-  sel.innerHTML='<option value="">Selecione...</option>'+(D().clientes||[]).map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  const sorted=[...(D().clientes||[])].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  sel.innerHTML='<option value="">Selecione...</option>'+sorted.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
   if(prev)sel.value=prev;
 }
-function salvarPedido(){
-  const d=D();
-  const cliId=parseInt(document.getElementById('pedCli').value);
-  const data =document.getElementById('pedData').value;
-  const pgto =document.getElementById('pedPgto').value;
-  const venc =document.getElementById('pedVenc').value;
-  const err  =document.getElementById('pedErr');
+async function salvarPedido(){
+  const d=D(); const cliId=parseInt(document.getElementById('pedCli').value);
+  const data=document.getElementById('pedData').value; const pgto=document.getElementById('pedPgto').value; const venc=document.getElementById('pedVenc').value;
+  const err=document.getElementById('pedErr');
   if(!cliId){err.textContent='Selecione um cliente.';err.style.display='block';return;}
-  if(!data) {err.textContent='Informe a data.';err.style.display='block';return;}
-  if(!venc) {err.textContent='Informe a data de pagamento.';err.style.display='block';return;}
-  const itens=[];
-  produtos.forEach(p=>{ const q=builderQtys[p.id]||0; if(q>0)itens.push({prodId:p.id,codigo:p.codigo,nome:p.nome,qty:q,venda:p.venda,custo:p.custo}); });
+  if(!data){err.textContent='Informe a data.';err.style.display='block';return;}
+  if(!venc){err.textContent='Informe a data de pagamento.';err.style.display='block';return;}
+  const itens=[]; produtos.forEach(p=>{ const q=builderQtys[p.id]||0; if(q>0)itens.push({prodId:p.id,codigo:p.codigo,nome:p.nome,qty:q,venda:p.venda,custo:p.custo}); });
   if(!itens.length){err.textContent='Adicione itens.';err.style.display='block';return;}
   err.style.display='none';
   const cli=d.clientes.find(c=>c.id===cliId);
   const receitaTotal=itens.reduce((s,it)=>s+it.venda*it.qty,0);
-  const lucroTotal  =itens.reduce((s,it)=>s+(it.venda-it.custo)*it.qty,0);
+  const lucroTotal=itens.reduce((s,it)=>s+(it.venda-it.custo)*it.qty,0);
   const id=d.nextPed++;
   const jaRecebido=(pgto==='pix'||pgto==='dinheiro')&&venc===data;
   d.pedidos.unshift({id,cliId,cliNome:cli.nome,data,pgto,venc,itens,receitaTotal,lucroTotal});
   itens.forEach(it=>{ d.vendidoQty[it.prodId]=(d.vendidoQty[it.prodId]||0)+it.qty; });
   d.contas.unshift({id:d.nextCon++,pedId:id,cliId,cliNome:cli.nome,valor:receitaTotal,venc,pgto,status:jaRecebido?'pago':'pend',data});
-  initBuilder(); renderBuilder(); recalc(); renderListaPedidos(); renderListaReceber(); renderClientesLista(); renderPlanilha();
-  // save já é chamado pelo recalc via scheduleSave
-  const btn=document.getElementById('pedBtn');
-  btn.textContent='✓ Salvo!';btn.style.background='var(--green)';
+  initBuilder();renderBuilder();await recalc();renderListaPedidos();renderListaReceber();renderClientesLista();renderPlanilha();
+  const btn=document.getElementById('pedBtn'); btn.textContent='✓ Salvo!';btn.style.background='var(--green)';
   setTimeout(()=>{btn.textContent='✓ Registrar pedido';btn.style.background='';},1800);
 }
 function renderListaPedidos(){
-  const d=D();
-  document.getElementById('pedCount').textContent=d.pedidos.length+' pedidos';
+  const d=D(); document.getElementById('pedCount').textContent=d.pedidos.length+' pedidos';
   if(!d.pedidos.length){document.getElementById('listaPedidos').innerHTML='<div class="empty"><div class="ico">📋</div>Nenhum pedido.</div>';return;}
-  document.getElementById('listaPedidos').innerHTML=d.pedidos.map(p=>`
-    <div class="ped-card">
-      <div class="ped-top"><div><div class="ped-cli">${p.cliNome}</div><div class="ped-date">Compra: ${fmtD(p.data)} · Pagto: ${fmtD(p.venc)}</div></div></div>
-      <div class="ped-badges">${pgBadge(p.pgto)}<span class="badge" style="background:var(--ink3);color:#fff">Pedido #${p.id}</span></div>
-      <div class="ped-itens">${p.itens.map(it=>`<strong>${it.codigo}</strong> ${it.nome} ×${it.qty} @ ${fmt(it.venda)} = <strong>${fmt(it.venda*it.qty)}</strong>`).join('<br>')}</div>
-      <div class="ped-vals"><div class="ped-val">Total <strong>${fmt(p.receitaTotal)}</strong></div></div>
-      <div class="ped-actions">
-        <button class="btn-sm" onclick="abrirNota(${p.id})">🧾 Nota</button>
-        <button class="btn-sm" onclick="abrirEdit(${p.id})">✏️ Editar</button>
-        <button class="btn btn-del" onclick="delPedido(${p.id})">✕</button>
-      </div>
-    </div>`).join('');
+  document.getElementById('listaPedidos').innerHTML=d.pedidos.map(p=>`<div class="ped-card"><div class="ped-top"><div><div class="ped-cli">${p.cliNome}</div><div class="ped-date">Compra: ${fmtD(p.data)} · Pagto: ${fmtD(p.venc)}</div></div></div><div class="ped-badges">${pgBadge(p.pgto)}<span class="badge" style="background:var(--ink3);color:#fff">Pedido #${p.id}</span></div><div class="ped-itens">${p.itens.map(it=>`<strong>${it.codigo}</strong> ${it.nome} ×${it.qty} @ ${fmt(it.venda)} = <strong>${fmt(it.venda*it.qty)}</strong>`).join('<br>')}</div><div class="ped-vals"><div class="ped-val">Total <strong>${fmt(p.receitaTotal)}</strong></div></div><div class="ped-actions"><button class="btn-sm" onclick="abrirNota(${p.id})">🧾 Nota</button><button class="btn-sm" onclick="abrirEdit(${p.id})">✏️ Editar</button><button class="btn btn-del" onclick="delPedido(${p.id})">✕</button></div></div>`).join('');
 }
-function delPedido(id){
+async function delPedido(id){
   const d=D(); if(!confirm(`Remover pedido #${id}?`))return;
   const ped=d.pedidos.find(p=>p.id===id);
   if(ped)ped.itens.forEach(it=>{ d.vendidoQty[it.prodId]=Math.max(0,(d.vendidoQty[it.prodId]||0)-it.qty); });
-  d.pedidos=d.pedidos.filter(p=>p.id!==id);
-  d.contas =d.contas.filter(c=>c.pedId!==id);
-  recalc(); renderListaPedidos(); renderListaReceber(); renderPlanilha();
+  d.pedidos=d.pedidos.filter(p=>p.id!==id); d.contas=d.contas.filter(c=>c.pedId!==id);
+  await recalc();renderListaPedidos();renderListaReceber();renderPlanilha();
 }
 
-// ════════════════════════════════════════════
-// EDITAR PEDIDO
-// ════════════════════════════════════════════
-function abrirEdit(id){
-  const d=D(); const ped=d.pedidos.find(p=>p.id===id); if(!ped)return;
-  editingPedId=id;
-  const sel=document.getElementById('editCli');
-  sel.innerHTML='<option value="">Selecione...</option>'+d.clientes.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
-  sel.value=ped.cliId;
-  document.getElementById('editData').value=ped.data;
-  document.getElementById('editPgto').value=ped.pgto;
-  document.getElementById('editVenc').value=ped.venc;
-  editBuilderQtys={}; produtos.forEach(p=>editBuilderQtys[p.id]=0);
-  ped.itens.forEach(it=>editBuilderQtys[it.prodId]=it.qty);
-  document.getElementById('editBuilderSearch').value='';
-  renderEditBuilder();
-  document.getElementById('editModal').classList.add('show');
-}
+// ════════════ EDITAR PEDIDO ════════════
+function abrirEdit(id){ const d=D(); const ped=d.pedidos.find(p=>p.id===id); if(!ped)return; editingPedId=id; const sel=document.getElementById('editCli'); sel.innerHTML='<option value="">Selecione...</option>'+d.clientes.map(c=>`<option value="${c.id}">${c.nome}</option>`).join(''); sel.value=ped.cliId; document.getElementById('editData').value=ped.data; document.getElementById('editPgto').value=ped.pgto; document.getElementById('editVenc').value=ped.venc; editBuilderQtys={}; produtos.forEach(p=>editBuilderQtys[p.id]=0); ped.itens.forEach(it=>editBuilderQtys[it.prodId]=it.qty); document.getElementById('editBuilderSearch').value=''; renderEditBuilder(); document.getElementById('editModal').classList.add('show'); }
 function closeEdit(){ document.getElementById('editModal').classList.remove('show'); editingPedId=null; }
-function renderEditBuilder(){
-  const q=(document.getElementById('editBuilderSearch')?.value||'').toLowerCase();
-  const filtered=produtos.filter(p=>p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q));
-  document.getElementById('editBuilderList').innerHTML=filtered.map(p=>`
-    <div class="brow">
-      <div class="brow-info"><div class="brow-name">${p.nome}</div><div class="brow-code">${p.codigo}</div></div>
-      <span class="brow-price">${fmt(p.venda)}</span>
-      <input class="brow-qty" type="number" min="0" value="${editBuilderQtys[p.id]||0}" id="ebq-${p.id}" oninput="editBuilderQtys['${p.id}']=parseInt(this.value)||0;updateEditPrev()">
-    </div>`).join('');
-  updateEditPrev();
-}
-function updateEditPrev(){
-  let receita=0,itens=[];
-  produtos.forEach(p=>{ const q=editBuilderQtys[p.id]||0; if(q>0){receita+=p.venda*q;itens.push(`${p.codigo}×${q}`);}});
-  const prev=document.getElementById('editPreview');
-  if(itens.length){prev.style.display='block';prev.innerHTML=`Total <span class="hi">${fmt(receita)}</span> · ${itens.length} sku(s)`;}
-  else prev.style.display='none';
-}
-function salvarEdit(){
-  const d=D();
-  const cliId=parseInt(document.getElementById('editCli').value);
-  const data =document.getElementById('editData').value;
-  const pgto =document.getElementById('editPgto').value;
-  const venc =document.getElementById('editVenc').value;
-  if(!cliId||!data||!venc){alert('Preencha todos os campos.');return;}
-  const itens=[];
-  produtos.forEach(p=>{ const q=editBuilderQtys[p.id]||0; if(q>0)itens.push({prodId:p.id,codigo:p.codigo,nome:p.nome,qty:q,venda:p.venda,custo:p.custo}); });
-  if(!itens.length){alert('Adicione ao menos um item.');return;}
-  const ped=d.pedidos.find(p=>p.id===editingPedId); if(!ped)return;
-  ped.itens.forEach(it=>{ d.vendidoQty[it.prodId]=Math.max(0,(d.vendidoQty[it.prodId]||0)-it.qty); });
-  const cli=d.clientes.find(c=>c.id===cliId);
-  ped.cliId=cliId;ped.cliNome=cli.nome;ped.data=data;ped.pgto=pgto;ped.venc=venc;ped.itens=itens;
-  ped.receitaTotal=itens.reduce((s,it)=>s+it.venda*it.qty,0);
-  ped.lucroTotal  =itens.reduce((s,it)=>s+(it.venda-it.custo)*it.qty,0);
-  itens.forEach(it=>{ d.vendidoQty[it.prodId]=(d.vendidoQty[it.prodId]||0)+it.qty; });
-  const conta=d.contas.find(c=>c.pedId===editingPedId);
-  if(conta){conta.cliId=cliId;conta.cliNome=cli.nome;conta.valor=ped.receitaTotal;conta.venc=venc;conta.pgto=pgto;}
-  closeEdit(); recalc(); renderListaPedidos(); renderListaReceber(); renderPlanilha();
-}
+function renderEditBuilder(){ const q=(document.getElementById('editBuilderSearch')?.value||'').toLowerCase(); const filtered=produtos.filter(p=>p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)); document.getElementById('editBuilderList').innerHTML=filtered.map(p=>`<div class="brow"><div class="brow-info"><div class="brow-name">${p.nome}</div><div class="brow-code">${p.codigo}</div></div><span class="brow-price">${fmt(p.venda)}</span><input class="brow-qty" type="number" min="0" value="${editBuilderQtys[p.id]||0}" id="ebq-${p.id}" oninput="editBuilderQtys['${p.id}']=parseInt(this.value)||0;updateEditPrev()"></div>`).join(''); updateEditPrev(); }
+function updateEditPrev(){ let receita=0,itens=[]; produtos.forEach(p=>{ const q=editBuilderQtys[p.id]||0; if(q>0){receita+=p.venda*q;itens.push(`${p.codigo}×${q}`);}});const prev=document.getElementById('editPreview'); if(itens.length){prev.style.display='block';prev.innerHTML=`Total <span class="hi">${fmt(receita)}</span> · ${itens.length} sku(s)`;}else prev.style.display='none'; }
+async function salvarEdit(){ const d=D(); const cliId=parseInt(document.getElementById('editCli').value); const data=document.getElementById('editData').value; const pgto=document.getElementById('editPgto').value; const venc=document.getElementById('editVenc').value; if(!cliId||!data||!venc){alert('Preencha todos os campos.');return;} const itens=[]; produtos.forEach(p=>{ const q=editBuilderQtys[p.id]||0; if(q>0)itens.push({prodId:p.id,codigo:p.codigo,nome:p.nome,qty:q,venda:p.venda,custo:p.custo}); }); if(!itens.length){alert('Adicione ao menos um item.');return;} const ped=d.pedidos.find(p=>p.id===editingPedId); if(!ped)return; ped.itens.forEach(it=>{ d.vendidoQty[it.prodId]=Math.max(0,(d.vendidoQty[it.prodId]||0)-it.qty); }); const cli=d.clientes.find(c=>c.id===cliId); ped.cliId=cliId;ped.cliNome=cli.nome;ped.data=data;ped.pgto=pgto;ped.venc=venc;ped.itens=itens; ped.receitaTotal=itens.reduce((s,it)=>s+it.venda*it.qty,0); ped.lucroTotal=itens.reduce((s,it)=>s+(it.venda-it.custo)*it.qty,0); itens.forEach(it=>{ d.vendidoQty[it.prodId]=(d.vendidoQty[it.prodId]||0)+it.qty; }); const conta=d.contas.find(c=>c.pedId===editingPedId); if(conta){conta.cliId=cliId;conta.cliNome=cli.nome;conta.valor=ped.receitaTotal;conta.venc=venc;conta.pgto=pgto;} closeEdit(); await recalc();renderListaPedidos();renderListaReceber();renderPlanilha(); }
 
-// ════════════════════════════════════════════
-// NOTA DE BALCÃO
-// ════════════════════════════════════════════
-function abrirNota(id){
-  const d=D(); const ped=d.pedidos.find(p=>p.id===id); if(!ped)return;
-  notaPedData=ped;
-  const linhas=['━━━━━━━━━━━━━━━━━━━━━━','      🏪 NOTA DE BALCÃO','━━━━━━━━━━━━━━━━━━━━━━',`Pedido : #${ped.id}`,`Data   : ${fmtD(ped.data)}`,`Cliente: ${ped.cliNome}`,`Vendedor: ${currentVendor.nome}`,'──────────────────────','ITENS:',...ped.itens.map(it=>`• ${it.nome}\n  ${it.qty}x ${fmt(it.venda)} = ${fmt(it.venda*it.qty)}`),'──────────────────────',`TOTAL    : ${fmt(ped.receitaTotal)}`,`Pagamento: ${pgLabel(ped.pgto)}`,`Vencimento: ${fmtD(ped.venc)}`,'━━━━━━━━━━━━━━━━━━━━━━','Obrigado pela preferência! 😊'];
-  document.getElementById('notaText').textContent=linhas.join('\n');
-  document.getElementById('notaModal').classList.add('show');
-}
+// ════════════ NOTA ════════════
+function abrirNota(id){ const d=D(); const ped=d.pedidos.find(p=>p.id===id); if(!ped)return; notaPedData=ped; const linhas=['━━━━━━━━━━━━━━━━━━━━━━','      🏪 NOTA DE BALCÃO','━━━━━━━━━━━━━━━━━━━━━━',`Pedido : #${ped.id}`,`Data   : ${fmtD(ped.data)}`,`Cliente: ${ped.cliNome}`,`Vendedor: ${currentVendor.nome}`,'──────────────────────','ITENS:',...ped.itens.map(it=>`• ${it.nome}\n  ${it.qty}x ${fmt(it.venda)} = ${fmt(it.venda*it.qty)}`),'──────────────────────',`TOTAL    : ${fmt(ped.receitaTotal)}`,`Pagamento: ${pgLabel(ped.pgto)}`,`Vencimento: ${fmtD(ped.venc)}`,'━━━━━━━━━━━━━━━━━━━━━━','Obrigado pela preferência! 😊']; document.getElementById('notaText').textContent=linhas.join('\n'); document.getElementById('notaModal').classList.add('show'); }
 function closeNota(){ document.getElementById('notaModal').classList.remove('show'); notaPedData=null; }
-function copyNota(){
-  const txt=document.getElementById('notaText').textContent;
-  navigator.clipboard.writeText(txt).then(()=>alert('Copiado! Cole no WhatsApp.')).catch(()=>{ const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('Copiado!'); });
-}
-function gerarImgNota(){
-  if(!notaPedData)return;
-  const ped=notaPedData; const W=360,PAD=22,LH=22,FS=13;
-  const linhas=[{t:'NOTA DE BALCÃO',bold:true,size:15,center:true},{t:'━━━━━━━━━━━━━━━━━━━━━'},{t:`Pedido #${ped.id}  |  ${fmtD(ped.data)}`},{t:`Cliente: ${ped.cliNome}`},{t:`Vendedor: ${currentVendor.nome}`},{t:'──────────────────────────'},{t:'ITENS:',bold:true},...ped.itens.flatMap(it=>[{t:`• ${it.nome}`},{t:`  ${it.qty}x ${fmt(it.venda)} = ${fmt(it.venda*it.qty)}`,color:'#1a6b3a'}]),{t:'──────────────────────────'},{t:`TOTAL: ${fmt(ped.receitaTotal)}`,bold:true,size:15},{t:`Pagamento: ${pgLabel(ped.pgto)}`},{t:`Vencimento: ${fmtD(ped.venc)}`},{t:'━━━━━━━━━━━━━━━━━━━━━'},{t:'Obrigado! 😊',center:true,color:'#8a8580'}];
-  const H=PAD*2+linhas.length*LH+20;
-  const canvas=document.createElement('canvas'); canvas.width=W;canvas.height=H;
-  const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#fafaf7';ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle='#d8d2c5';ctx.lineWidth=2;ctx.strokeRect(4,4,W-8,H-8);
-  let y=PAD+LH;
-  linhas.forEach(l=>{ ctx.font=(l.bold?'bold ':'')+(l.size||FS)+'px monospace';ctx.fillStyle=l.color||'#1a1710';ctx.textAlign=l.center?'center':'left';ctx.fillText(l.t,l.center?W/2:PAD,y);y+=LH; });
-  canvas.toBlob(blob=>{ const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`nota-${ped.id}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000); });
-}
+function copyNota(){ const txt=document.getElementById('notaText').textContent; navigator.clipboard.writeText(txt).then(()=>alert('Copiado!')).catch(()=>{ const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);alert('Copiado!'); }); }
+function gerarImgNota(){ if(!notaPedData)return; const ped=notaPedData; const W=360,PAD=22,LH=22,FS=13; const linhas=[{t:'NOTA DE BALCÃO',bold:true,size:15,center:true},{t:'━━━━━━━━━━━━━━━━━━━━━'},{t:`Pedido #${ped.id}  |  ${fmtD(ped.data)}`},{t:`Cliente: ${ped.cliNome}`},{t:`Vendedor: ${currentVendor.nome}`},{t:'──────────────────────────'},{t:'ITENS:',bold:true},...ped.itens.flatMap(it=>[{t:`• ${it.nome}`},{t:`  ${it.qty}x ${fmt(it.venda)} = ${fmt(it.venda*it.qty)}`,color:'#1a6b3a'}]),{t:'──────────────────────────'},{t:`TOTAL: ${fmt(ped.receitaTotal)}`,bold:true,size:15},{t:`Pagamento: ${pgLabel(ped.pgto)}`},{t:`Vencimento: ${fmtD(ped.venc)}`},{t:'━━━━━━━━━━━━━━━━━━━━━'},{t:'Obrigado! 😊',center:true,color:'#8a8580'}]; const H=PAD*2+linhas.length*LH+20; const canvas=document.createElement('canvas'); canvas.width=W;canvas.height=H; const ctx=canvas.getContext('2d'); ctx.fillStyle='#fafaf7';ctx.fillRect(0,0,W,H); ctx.strokeStyle='#d8d2c5';ctx.lineWidth=2;ctx.strokeRect(4,4,W-8,H-8); let y=PAD+LH; linhas.forEach(l=>{ ctx.font=(l.bold?'bold ':'')+(l.size||FS)+'px monospace';ctx.fillStyle=l.color||'#1a1710';ctx.textAlign=l.center?'center':'left';ctx.fillText(l.t,l.center?W/2:PAD,y);y+=LH; }); canvas.toBlob(blob=>{ const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`nota-${ped.id}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000); }); }
 
-// ════════════════════════════════════════════
-// A RECEBER
-// ════════════════════════════════════════════
-function marcarPago(id){
-  const d=D(); const c=d.contas.find(x=>x.id===id); if(!c)return;
-  c.pagamentos=c.pagamentos||[];
-  c.pagamentos.push({valor:saldoConta(c),data:today()});
-  c.status='pago'; renderListaReceber(); recalc();
-}
+// ════════════ A RECEBER ════════════
+async function marcarPago(id){ const d=D(); const c=d.contas.find(x=>x.id===id); if(!c)return; c.pagamentos=c.pagamentos||[]; c.pagamentos.push({valor:saldoConta(c),data:today()}); c.status='pago'; renderListaReceber();await recalc(); }
 function togglePgtoForm(id){ const el=document.getElementById('pgto-form-'+id); if(el)el.style.display=el.style.display==='none'?'block':'none'; }
-function registrarPagParcial(id){
-  const d=D(); const c=d.contas.find(x=>x.id===id); if(!c)return;
-  const val=parseFloat(document.getElementById('pgto-val-'+id)?.value)||0;
-  const dat=document.getElementById('pgto-dat-'+id)?.value||today();
-  const saldo=saldoConta(c);
-  if(val<=0||val>saldo+0.001){alert(`Valor inválido. Saldo: ${fmt(saldo)}`);return;}
-  c.pagamentos=c.pagamentos||[];
-  c.pagamentos.push({valor:parseFloat(val.toFixed(2)),data:dat});
-  c.status=saldoConta(c)<=0.01?'pago':'parc';
-  renderListaReceber(); recalc();
-}
+async function registrarPagParcial(id){ const d=D(); const c=d.contas.find(x=>x.id===id); if(!c)return; const val=parseFloat(document.getElementById('pgto-val-'+id)?.value)||0; const dat=document.getElementById('pgto-dat-'+id)?.value||today(); const saldo=saldoConta(c); if(val<=0||val>saldo+0.001){alert(`Valor inválido. Saldo: ${fmt(saldo)}`);return;} c.pagamentos=c.pagamentos||[]; c.pagamentos.push({valor:parseFloat(val.toFixed(2)),data:dat}); c.status=saldoConta(c)<=0.01?'pago':'parc'; renderListaReceber();await recalc(); }
 function renderListaReceber(){
-  const d=D();
-  const pend=d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0);
-  const pago=d.contas.reduce((s,c)=>s+(c.pagamentos||[]).reduce((ss,p)=>ss+p.valor,0),0);
-  document.getElementById('recTotPend').textContent=fmt(pend);
-  document.getElementById('recTotPago').textContent=fmt(pago);
+  const d=D(); const pend=d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0); const pago=d.contas.reduce((s,c)=>s+(c.pagamentos||[]).reduce((ss,p)=>ss+p.valor,0),0);
+  document.getElementById('recTotPend').textContent=fmt(pend); document.getElementById('recTotPago').textContent=fmt(pago);
   if(!d.contas.length){document.getElementById('listaReceber').innerHTML='<div class="empty"><div class="ico">💸</div>Nenhuma conta.</div>';return;}
-  const hj=today();
-  const sorted=[...d.contas].sort((a,b)=>{ const o={pend:0,parc:1,pago:2}; return(o[a.status]||0)-(o[b.status]||0)||a.venc.localeCompare(b.venc); });
-  document.getElementById('listaReceber').innerHTML=sorted.map(c=>{
-    const saldo=saldoConta(c);const pgtos=c.pagamentos||[];
-    const totalPago=pgtos.reduce((s,p)=>s+p.valor,0);
-    const vencido=c.status!=='pago'&&c.venc<hj;
-    const pctPago=c.valor>0?Math.min(100,(totalPago/c.valor)*100):0;
-    const cls=c.status==='pago'?'rec-pago':c.status==='parc'?'rec-parc':'rec-pend';
-    const sLabel=c.status==='pago'?'PAGO':c.status==='parc'?'PARCIAL':'PENDENTE';
-    const sBadge=c.status==='pago'?'bpago':c.status==='parc'?'bdin':'bpend';
-    const histHTML=pgtos.length?`<div class="rec-hist">${pgtos.map((p,i)=>`<div class="rec-hist-row"><span style="color:var(--ink3)">${i+1}.</span><span class="hi-val">+${fmt(p.valor)}</span><span class="hi-date">em ${fmtD(p.data)}</span></div>`).join('')}</div>`:'';
-    const saldoBar=c.status!=='pago'?`<div class="saldo-bar"><span class="saldo-label">Saldo:</span><span class="saldo-val${saldo<=0?' zerado':''}">${fmt(saldo)}</span><div class="saldo-track"><div class="saldo-fill" style="width:${pctPago.toFixed(0)}%"></div></div><span style="font-size:.61rem;color:var(--ink3)">${pctPago.toFixed(0)}%</span></div>`:'';
-    const formHTML=c.status!=='pago'?`<div id="pgto-form-${c.id}" style="display:none"><div class="rec-pgto-form"><div><label>Valor (R$)</label><input class="rec-pgto-inp" type="number" id="pgto-val-${c.id}" placeholder="0,00" step="0.01" min="0" max="${saldo.toFixed(2)}"></div><div><label>Data</label><input class="rec-pgto-inp rec-pgto-date" type="date" id="pgto-dat-${c.id}" value="${hj}"></div><button class="btn-pgto" onclick="registrarPagParcial(${c.id})">✓ Confirmar</button></div></div>`:'';
-    const actHTML=c.status!=='pago'?`<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><span class="badge ${sBadge}">${sLabel}</span><button class="btn btn-g" onclick="togglePgtoForm(${c.id})">+ Pagamento</button>${saldo>0?`<button class="btn" style="background:var(--ink);color:var(--bg);padding:5px 8px;font-size:.68rem" onclick="marcarPago(${c.id})">Quitar</button>`:''}</div>`:`<span class="badge ${sBadge}">${sLabel}</span>`;
-    return`<div class="rec-card ${cls}"><div class="rec-top"><div><span class="rec-val">${fmt(c.valor)}</span><div class="rec-info"><strong>${c.cliNome}</strong> · Ped.#${c.pedId}<br>${pgBadge(c.pgto)} Venc:<strong style="color:${vencido?'var(--red)':'inherit'}">${fmtD(c.venc)}</strong>${vencido?' <span class="badge bpend">VENCIDO</span>':''}</div></div>${actHTML}</div>${saldoBar}${histHTML}${formHTML}</div>`;
-  }).join('');
+  const hj=today(); const sorted=[...d.contas].sort((a,b)=>{ const o={pend:0,parc:1,pago:2}; return(o[a.status]||0)-(o[b.status]||0)||a.venc.localeCompare(b.venc); });
+  document.getElementById('listaReceber').innerHTML=sorted.map(c=>{ const saldo=saldoConta(c);const pgtos=c.pagamentos||[];const totalPago=pgtos.reduce((s,p)=>s+p.valor,0);const vencido=c.status!=='pago'&&c.venc<hj;const pctPago=c.valor>0?Math.min(100,(totalPago/c.valor)*100):0;const cls=c.status==='pago'?'rec-pago':c.status==='parc'?'rec-parc':'rec-pend';const sLabel=c.status==='pago'?'PAGO':c.status==='parc'?'PARCIAL':'PENDENTE';const sBadge=c.status==='pago'?'bpago':c.status==='parc'?'bdin':'bpend';const histHTML=pgtos.length?`<div class="rec-hist">${pgtos.map((p,i)=>`<div class="rec-hist-row"><span style="color:var(--ink3)">${i+1}.</span><span class="hi-val">+${fmt(p.valor)}</span><span class="hi-date">em ${fmtD(p.data)}</span></div>`).join('')}</div>`:'';const saldoBar=c.status!=='pago'?`<div class="saldo-bar"><span class="saldo-label">Saldo:</span><span class="saldo-val${saldo<=0?' zerado':''}">${fmt(saldo)}</span><div class="saldo-track"><div class="saldo-fill" style="width:${pctPago.toFixed(0)}%"></div></div><span style="font-size:.61rem;color:var(--ink3)">${pctPago.toFixed(0)}%</span></div>`:'';const formHTML=c.status!=='pago'?`<div id="pgto-form-${c.id}" style="display:none"><div class="rec-pgto-form"><div><label>Valor (R$)</label><input class="rec-pgto-inp" type="number" id="pgto-val-${c.id}" placeholder="0,00" step="0.01" min="0" max="${saldo.toFixed(2)}"></div><div><label>Data</label><input class="rec-pgto-inp rec-pgto-date" type="date" id="pgto-dat-${c.id}" value="${hj}"></div><button class="btn-pgto" onclick="registrarPagParcial(${c.id})">✓ Confirmar</button></div></div>`:'';const actHTML=c.status!=='pago'?`<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><span class="badge ${sBadge}">${sLabel}</span><button class="btn btn-g" onclick="togglePgtoForm(${c.id})">+ Pagamento</button>${saldo>0?`<button class="btn" style="background:var(--ink);color:var(--bg);padding:5px 8px;font-size:.68rem" onclick="marcarPago(${c.id})">Quitar</button>`:''}</div>`:`<span class="badge ${sBadge}">${sLabel}</span>`;
+  return`<div class="rec-card ${cls}"><div class="rec-top"><div><span class="rec-val">${fmt(c.valor)}</span><div class="rec-info"><strong>${c.cliNome}</strong> · Ped.#${c.pedId}<br>${pgBadge(c.pgto)} Venc:<strong style="color:${vencido?'var(--red)':'inherit'}">${fmtD(c.venc)}</strong>${vencido?' <span class="badge bpend">VENCIDO</span>':''}</div></div>${actHTML}</div>${saldoBar}${histHTML}${formHTML}</div>`; }).join('');
 }
 
-// ════════════════════════════════════════════
-// CLIENTES
-// ════════════════════════════════════════════
-function addCliente(){
-  const d=D(); const nome=document.getElementById('cliNome').value.trim(); const tel=document.getElementById('cliTel').value.trim();
-  const err=document.getElementById('cliErr');
-  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
-  err.style.display='none';
-  d.clientes.push({id:d.nextCli++,nome,tel});
-  document.getElementById('cliNome').value=''; document.getElementById('cliTel').value='';
-  renderClientesLista(); refreshPedCli(); scheduleSave();
-}
-function delCliente(id){
-  const d=D(); if(d.pedidos.some(p=>p.cliId===id)){alert('Cliente tem pedidos.');return;}
-  if(!confirm('Remover?'))return;
-  d.clientes=d.clientes.filter(c=>c.id!==id);
-  renderClientesLista(); refreshPedCli(); scheduleSave();
-}
-function renderClientesLista(){
-  const d=D();
-  document.getElementById('cliCount').textContent=d.clientes.length+' clientes';
-  if(!d.clientes.length){document.getElementById('listaClientes').innerHTML='<div class="empty"><div class="ico">👤</div>Nenhum cliente.</div>';return;}
-  document.getElementById('listaClientes').innerHTML=d.clientes.map(c=>{
-    const cp=d.pedidos.filter(p=>p.cliId===c.id); const cr=cp.reduce((s,p)=>s+p.receitaTotal,0);
-    return`<div class="cli-card"><div class="cli-av">${ini(c.nome)}</div><div class="cli-info"><div class="cli-name">${c.nome}</div><div class="cli-sub">${c.tel||'Sem tel.'} · ${cp.length} pedidos</div></div><div class="cli-stats"><span class="sv">${fmt(cr)}</span></div><button class="btn btn-del" onclick="delCliente(${c.id})">✕</button></div>`;
-  }).join('');
-}
+// ════════════ CLIENTES ════════════
+async function addCliente(){ const d=D(); const nome=document.getElementById('cliNome').value.trim(); const tel=document.getElementById('cliTel').value.trim(); const err=document.getElementById('cliErr'); if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;} err.style.display='none'; d.clientes.push({id:d.nextCli++,nome,tel}); document.getElementById('cliNome').value=''; document.getElementById('cliTel').value=''; renderClientesLista();refreshPedCli();await saveVd(currentVendor.id); }
+async function delCliente(id){ const d=D(); if(d.pedidos.some(p=>p.cliId===id)){alert('Cliente tem pedidos.');return;} if(!confirm('Remover?'))return; d.clientes=d.clientes.filter(c=>c.id!==id); renderClientesLista();refreshPedCli();await saveVd(currentVendor.id); }
+function renderClientesLista(){ const d=D(); document.getElementById('cliCount').textContent=d.clientes.length+' clientes'; if(!d.clientes.length){document.getElementById('listaClientes').innerHTML='<div class="empty"><div class="ico">👤</div>Nenhum cliente.</div>';return;} const sorted=[...d.clientes].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); document.getElementById('listaClientes').innerHTML=sorted.map(c=>{ const cp=d.pedidos.filter(p=>p.cliId===c.id); const cr=cp.reduce((s,p)=>s+p.receitaTotal,0); return`<div class="cli-card"><div class="cli-av">${ini(c.nome)}</div><div class="cli-info"><div class="cli-name">${c.nome}</div><div class="cli-sub">${c.tel||'Sem tel.'} · ${cp.length} pedidos</div></div><div class="cli-stats"><span class="sv">${fmt(cr)}</span></div><button class="btn btn-del" onclick="delCliente(${c.id})">✕</button></div>`; }).join(''); }
 
-// ════════════════════════════════════════════
-// CURVAS ABC
-// ════════════════════════════════════════════
-function renderCurvas(){
-  const d=D(); const cv=calcABC(d.pedidos);
-  const recProd={};
-  produtos.forEach(p=>recProd[p.id]=d.pedidos.reduce((s,ped)=>s+ped.itens.filter(it=>it.prodId===p.id).reduce((ss,it)=>ss+it.venda*it.qty,0),0));
-  const total=Object.values(recProd).reduce((a,b)=>a+b,0);
-  const dotCls={A:'cda',B:'cdb',C:'cdc',novo:'cdn'};
-  const sorted=[...produtos].sort((a,b)=>(recProd[b.id]||0)-(recProd[a.id]||0));
-  document.getElementById('curvaLista').innerHTML=sorted.map(p=>{
-    const c=cv[p.id]||'novo';const r=recProd[p.id]||0;const pct=total>0?(r/total*100).toFixed(1):'—';
-    return`<div class="cv-row"><span class="cdot ${dotCls[c]}"></span><span style="flex:1;font-weight:600;font-size:.75rem">${p.nome}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink3);margin-right:4px">${p.codigo}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--ink3);margin-right:5px">${fmt(r)} · ${pct}%</span>${cvTag(c)}</div>`;
-  }).join('');
-  renderHistorico();
-}
-function renderHistorico(){
-  const d=D(); const el=document.getElementById('historicoLista');
-  if(!d.historico.length){el.innerHTML='<div class="empty"><div class="ico">📅</div>Nenhum mês fechado.</div>';return;}
-  const dotCls={A:'cda',B:'cdb',C:'cdc',novo:'cdn'};
-  el.innerHTML=d.historico.map((m,i)=>{
-    const mixRows=(m.mix||[]).filter(x=>x.qty>0).map(x=>`<div class="cv-row"><span class="cdot ${dotCls[x.c]||'cdn'}"></span><span style="flex:1;font-size:.75rem;font-weight:600">${x.nome}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--amber);margin-right:5px">×${x.qty}</span>${cvTag(x.c)}</div>`).join('')||'<div class="empty" style="padding:7px">Sem vendas</div>';
-    const rankRows=(m.ranking||[]).map((r,idx)=>`<div class="ri"><span class="rn">${idx+1}</span><span class="rnm">${r.nome}</span><span class="rv">${fmt(r.receita)}</span></div>`).join('')||'<div class="empty" style="padding:7px">Sem dados</div>';
-    return`<div class="hist-block"><div class="hist-hdr"><div class="ttl">${m.label}</div><div class="vals">Fat <strong>${fmt(m.fat||0)}</strong> · Lucro <strong>${fmt(m.lucro||0)}</strong></div><button class="hist-toggle" onclick="toggleHist(${i})">Ver</button></div><div class="hist-body" id="hist-body-${i}"><div class="hist-sub">Mix vendido</div>${mixRows}<div class="hist-sub">Ranking clientes</div>${rankRows}</div></div>`;
-  }).join('');
-}
+// ════════════ CURVAS ABC ════════════
+function renderCurvas(){ const d=D(); const cv=calcABC(d.pedidos); const recProd={}; produtos.forEach(p=>recProd[p.id]=d.pedidos.reduce((s,ped)=>s+ped.itens.filter(it=>it.prodId===p.id).reduce((ss,it)=>ss+it.venda*it.qty,0),0)); const total=Object.values(recProd).reduce((a,b)=>a+b,0); const dotCls={A:'cda',B:'cdb',C:'cdc',novo:'cdn'}; const sorted=[...produtos].sort((a,b)=>(recProd[b.id]||0)-(recProd[a.id]||0)); document.getElementById('curvaLista').innerHTML=sorted.map(p=>{ const c=cv[p.id]||'novo';const r=recProd[p.id]||0;const pct=total>0?(r/total*100).toFixed(1):'—'; return`<div class="cv-row"><span class="cdot ${dotCls[c]}"></span><span style="flex:1;font-weight:600;font-size:.75rem">${p.nome}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.63rem;color:var(--ink3);margin-right:4px">${p.codigo}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--ink3);margin-right:5px">${fmt(r)} · ${pct}%</span>${cvTag(c)}</div>`; }).join(''); renderHistorico(); }
+function renderHistorico(){ const d=D(); const el=document.getElementById('historicoLista'); if(!d.historico.length){el.innerHTML='<div class="empty"><div class="ico">📅</div>Nenhum mês fechado.</div>';return;} const dotCls={A:'cda',B:'cdb',C:'cdc',novo:'cdn'}; el.innerHTML=d.historico.map((m,i)=>{ const mixRows=(m.mix||[]).filter(x=>x.qty>0).map(x=>`<div class="cv-row"><span class="cdot ${dotCls[x.c]||'cdn'}"></span><span style="flex:1;font-size:.75rem;font-weight:600">${x.nome}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--amber);margin-right:5px">×${x.qty}</span>${cvTag(x.c)}</div>`).join('')||'<div class="empty" style="padding:7px">Sem vendas</div>'; const rankRows=(m.ranking||[]).map((r,idx)=>`<div class="ri"><span class="rn">${idx+1}</span><span class="rnm">${r.nome}</span><span class="rv">${fmt(r.receita)}</span></div>`).join('')||'<div class="empty" style="padding:7px">Sem dados</div>'; return`<div class="hist-block"><div class="hist-hdr"><div class="ttl">${m.label}</div><div class="vals">Fat <strong>${fmt(m.fat||0)}</strong> · Lucro <strong>${fmt(m.lucro||0)}</strong></div><button class="hist-toggle" onclick="toggleHist(${i})">Ver</button></div><div class="hist-body" id="hist-body-${i}"><div class="hist-sub">Mix vendido</div>${mixRows}<div class="hist-sub">Ranking clientes</div>${rankRows}</div></div>`; }).join(''); }
 function toggleHist(i){ document.getElementById('hist-body-'+i)?.classList.toggle('show'); }
-function fecharMes(){
-  if(!confirm('Fechar o mês salva as curvas no histórico e zera pedidos do período. Confirmar?'))return;
-  const d=D(); const cv=calcABC(d.pedidos);
-  const now=new Date(); const label=now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-  const fat  =d.pedidos.reduce((s,p)=>s+p.receitaTotal,0);
-  const lucro=d.pedidos.reduce((s,p)=>s+p.lucroTotal,0);
-  const mix  =produtos.map(p=>({nome:p.nome,codigo:p.codigo,c:cv[p.id]||'novo',qty:d.vendidoQty[p.id]||0})).sort((a,b)=>b.qty-a.qty);
-  const ranking=d.clientes.map(c=>{ const cp=d.pedidos.filter(p=>p.cliId===c.id); return{nome:c.nome,receita:cp.reduce((s,p)=>s+p.receitaTotal,0)}; }).filter(x=>x.receita>0).sort((a,b)=>b.receita-a.receita);
-  d.historico.unshift({label,fat,lucro,mix,ranking});
-  d.pedidos=[];d.contas=[];d.vendidoQty={};
-  recalc(); renderListaPedidos(); renderListaReceber(); renderClientesLista(); renderCurvas(); renderPlanilha();
-  alert('Mês fechado!');
-}
+async function fecharMes(){ if(!confirm('Fechar o mês salva as curvas no histórico e zera pedidos do período. Confirmar?'))return; const d=D(); const cv=calcABC(d.pedidos); const now=new Date(); const label=now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); const fat=d.pedidos.reduce((s,p)=>s+p.receitaTotal,0); const lucro=d.pedidos.reduce((s,p)=>s+p.lucroTotal,0); const mix=produtos.map(p=>({nome:p.nome,codigo:p.codigo,c:cv[p.id]||'novo',qty:d.vendidoQty[p.id]||0})).sort((a,b)=>b.qty-a.qty); const ranking=d.clientes.map(c=>{ const cp=d.pedidos.filter(p=>p.cliId===c.id); return{nome:c.nome,receita:cp.reduce((s,p)=>s+p.receitaTotal,0)}; }).filter(x=>x.receita>0).sort((a,b)=>b.receita-a.receita); d.historico.unshift({label,fat,lucro,mix,ranking}); d.pedidos=[];d.contas=[];d.vendidoQty={}; await recalc();renderListaPedidos();renderListaReceber();renderClientesLista();renderCurvas();renderPlanilha(); alert('Mês fechado!'); }
 
-// ════════════════════════════════════════════
-// PLANILHA
-// ════════════════════════════════════════════
-function renderPlanilha(){
-  if(isMgr)return;
-  const d=D(); const body=document.getElementById('planBody'); if(!body)return;
-  let totQty=0,totCusto=0,totMargem=0;
-  const rows=produtos.map(p=>{
-    const qty=d.vendidoQty[p.id]||0; const ct=p.custo*qty; const mt=mg(p)*qty;
-    totQty+=qty;totCusto+=ct;totMargem+=mt;
-    return`<tr><td class="nm">${p.nome}</td><td>${p.segmento||'—'}</td><td>${p.codigo}</td><td>${fmt(p.custo)}</td><td>${fmt(p.venda)}</td><td>${fmt(mg(p))}</td><td>${mgPct(p)}%</td><td>${qty>0?'<strong>'+qty+'</strong>':'<span class="vneg">0</span>'}</td><td>${qty>0?fmt(ct):'<span class="vneg">—</span>'}</td><td>${qty>0?'<span class="vpos">'+fmt(mt)+'</span>':'<span class="vneg">—</span>'}</td></tr>`;
-  }).join('');
-  body.innerHTML=rows+`<tr class="tot-row"><td colspan="7">TOTAL DO PERÍODO</td><td>${totQty}</td><td>${fmt(totCusto)}</td><td>${fmt(totMargem)}</td></tr>`;
-  document.getElementById('planTotItens').textContent=totQty;
-  document.getElementById('planTotMargem').textContent=fmt(totMargem);
-}
+// ════════════ PLANILHA ════════════
+function renderPlanilha(){ if(isMgr)return; const d=D(); const body=document.getElementById('planBody'); if(!body)return; let totQty=0,totCusto=0,totMargem=0; const rows=produtos.map(p=>{ const qty=d.vendidoQty[p.id]||0; const ct=p.custo*qty; const mt=mg(p)*qty; totQty+=qty;totCusto+=ct;totMargem+=mt; return`<tr><td class="nm">${p.nome}</td><td>${p.segmento||'—'}</td><td>${p.codigo}</td><td>${fmt(p.custo)}</td><td>${fmt(p.venda)}</td><td>${fmt(mg(p))}</td><td>${mgPct(p)}%</td><td>${qty>0?'<strong>'+qty+'</strong>':'<span class="vneg">0</span>'}</td><td>${qty>0?fmt(ct):'<span class="vneg">—</span>'}</td><td>${qty>0?'<span class="vpos">'+fmt(mt)+'</span>':'<span class="vneg">—</span>'}</td></tr>`; }).join(''); body.innerHTML=rows+`<tr class="tot-row"><td colspan="7">TOTAL DO PERÍODO</td><td>${totQty}</td><td>${fmt(totCusto)}</td><td>${fmt(totMargem)}</td></tr>`; document.getElementById('planTotItens').textContent=totQty; document.getElementById('planTotMargem').textContent=fmt(totMargem); }
 
-// ════════════════════════════════════════════
-// CADASTRO
-// ════════════════════════════════════════════
+// ════════════ CADASTRO ════════════
 let cadTimer=null;
 ['cadNome','cadCusto','cadVenda'].forEach(id=>{ document.getElementById(id)?.addEventListener('input',()=>{ clearTimeout(cadTimer);cadTimer=setTimeout(updateCadPrev,200); }); });
-function updateCadPrev(){
-  const custo=parseFloat(document.getElementById('cadCusto').value)||0;
-  const venda=parseFloat(document.getElementById('cadVenda').value)||0;
-  const prev=document.getElementById('cadPrev');
-  if(custo>0&&venda>custo){ const m=venda-custo; prev.style.display='block'; prev.innerHTML=`Margem: <span class="hi">${fmt(m)} (${((m/venda)*100).toFixed(0)}%)</span>`; }
-  else prev.style.display='none';
-}
-function addProduto(){
-  const nome=document.getElementById('cadNome').value.trim();
-  let codigo=document.getElementById('cadCodigo').value.trim().toUpperCase();
-  const custo=parseFloat(document.getElementById('cadCusto').value)||0;
-  const venda=parseFloat(document.getElementById('cadVenda').value)||0;
-  const segmento=document.getElementById('cadSeg').value;
-  const err=document.getElementById('cadErr');
-  if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
-  if(custo<=0){err.textContent='Informe o custo.';err.style.display='block';return;}
-  if(venda<=custo){err.textContent='Venda deve ser maior que custo.';err.style.display='block';return;}
-  err.style.display='none';
-  if(!codigo){ const pfx=nome.replace(/[^a-zA-Z0-9]/g,'').toUpperCase().slice(0,4); codigo=pfx+'-'+(nextProd++); }
-  if(produtos.find(p=>p.codigo===codigo)){err.textContent='Código já existe.';err.style.display='block';return;}
-  produtos.push({id:codigo,codigo,nome,segmento,custo,venda,_custom:true});
-  ['cadNome','cadCodigo','cadCusto','cadVenda'].forEach(x=>document.getElementById(x).value='');
-  document.getElementById('cadPrev').style.display='none';
-  scheduleSave(); renderCadLista(); renderPlanilha();
-  const btn=document.getElementById('cadBtn');
-  btn.textContent='✓ Adicionado!';btn.style.background='var(--green)';
-  setTimeout(()=>{btn.textContent='+ Adicionar produto';btn.style.background='';},1800);
-}
-function delProduto(id){
-  if(VENDORS.some(v=>vd[v.id]?.pedidos?.some(p=>p.itens?.some(it=>it.prodId===id)))){alert('Produto tem pedidos.');return;}
-  if(!confirm('Remover?'))return;
-  produtos.splice(produtos.findIndex(p=>p.id===id),1);
-  scheduleSave(); renderCadLista(); renderPlanilha();
-}
-function renderCadLista(){
-  document.getElementById('cadCount').textContent=produtos.length+' produtos';
-  document.getElementById('cadLista').innerHTML=produtos.map(p=>`
-    <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:8px 11px;margin-bottom:5px;display:flex;align-items:center;gap:7px;">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:.79rem">${p.nome} <span class="pcode">${p.codigo}</span> <span style="font-size:.58rem;background:var(--amberp);color:var(--amber);padding:1px 4px;border-radius:4px;font-weight:700">${p.segmento||'—'}</span></div>
-        <div style="font-size:.65rem;color:var(--ink3);font-family:'JetBrains Mono',monospace;margin-top:1px">Custo ${fmt(p.custo)} · Venda ${fmt(p.venda)} · <span style="color:var(--amber)">+${fmt(mg(p))} (${mgPct(p)}%)</span></div>
-      </div>
-      <button class="btn btn-del" onclick="delProduto('${p.id}')">✕</button>
-    </div>`).join('');
-}
+function updateCadPrev(){ const custo=parseFloat(document.getElementById('cadCusto').value)||0; const venda=parseFloat(document.getElementById('cadVenda').value)||0; const prev=document.getElementById('cadPrev'); if(custo>0&&venda>custo){ const m=venda-custo; prev.style.display='block'; prev.innerHTML=`Margem: <span class="hi">${fmt(m)} (${((m/venda)*100).toFixed(0)}%)</span>`; }else prev.style.display='none'; }
+async function addProduto(){ const nome=document.getElementById('cadNome').value.trim(); let codigo=document.getElementById('cadCodigo').value.trim().toUpperCase(); const custo=parseFloat(document.getElementById('cadCusto').value)||0; const venda=parseFloat(document.getElementById('cadVenda').value)||0; const segmento=document.getElementById('cadSeg').value; const err=document.getElementById('cadErr'); if(!nome){err.textContent='Informe o nome.';err.style.display='block';return;} if(custo<=0){err.textContent='Informe o custo.';err.style.display='block';return;} if(venda<=custo){err.textContent='Venda deve ser maior que custo.';err.style.display='block';return;} err.style.display='none'; if(!codigo){ const pfx=nome.replace(/[^a-zA-Z0-9]/g,'').toUpperCase().slice(0,4); codigo=pfx+'-'+(nextProd++); } if(produtos.find(p=>p.codigo===codigo)){err.textContent='Código já existe.';err.style.display='block';return;} produtos.push({id:codigo,codigo,nome,segmento,custo,venda,_custom:true}); ['cadNome','cadCodigo','cadCusto','cadVenda'].forEach(x=>document.getElementById(x).value=''); document.getElementById('cadPrev').style.display='none'; await saveProds();renderCadLista();renderPlanilha(); const btn=document.getElementById('cadBtn'); btn.textContent='✓ Adicionado!';btn.style.background='var(--green)'; setTimeout(()=>{btn.textContent='+ Adicionar produto';btn.style.background='';},1800); }
+async function delProduto(id){ if(VENDORS.some(v=>vd[v.id]?.pedidos?.some(p=>p.itens?.some(it=>it.prodId===id)))){alert('Produto tem pedidos.');return;} if(!confirm('Remover?'))return; produtos.splice(produtos.findIndex(p=>p.id===id),1); await saveProds();renderCadLista();renderPlanilha(); }
+function renderCadLista(){ document.getElementById('cadCount').textContent=produtos.length+' produtos'; document.getElementById('cadLista').innerHTML=produtos.map(p=>`<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:8px 11px;margin-bottom:5px;display:flex;align-items:center;gap:7px;"><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:.79rem">${p.nome} <span class="pcode">${p.codigo}</span> <span style="font-size:.58rem;background:var(--amberp);color:var(--amber);padding:1px 4px;border-radius:4px;font-weight:700">${p.segmento||'—'}</span></div><div style="font-size:.65rem;color:var(--ink3);font-family:'JetBrains Mono',monospace;margin-top:1px">Custo ${fmt(p.custo)} · Venda ${fmt(p.venda)} · <span style="color:var(--amber)">+${fmt(mg(p))} (${mgPct(p)}%)</span></div></div><button class="btn btn-del" onclick="delProduto('${p.id}')">✕</button></div>`).join(''); }
 
-// ════════════════════════════════════════════
-// GERÊNCIA
-// ════════════════════════════════════════════
-function renderGerencia(){
-  document.getElementById('mgrFilter').innerHTML=[{id:'all',lbl:'Todos'},...VENDORS.map(v=>({id:v.id,lbl:v.nome}))].map(f=>`<button class="mgr-fbtn${mgrFilter===f.id?' active':''}" onclick="setMgrFilter('${f.id}')">${f.lbl}</button>`).join('');
-  const vids=mgrFilter==='all'?VENDORS.map(v=>v.id):[mgrFilter];
-  const allPeds=vids.flatMap(id=>vd[id]?.pedidos||[]);
-  // compare por vendedor
-  document.getElementById('mgrCompare').innerHTML=VENDORS.map(v=>{
-    const d=vd[v.id]||defVd();
-    const fat  =d.pedidos.reduce((s,p)=>s+p.receitaTotal,0);
-    const lucro=d.pedidos.reduce((s,p)=>s+p.lucroTotal,0);
-    const pend =d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0);
-    const pct  =d.META>0?Math.min(100,(lucro/d.META)*100):0;
-    const importedAt=mgrImported[v.id]?._importedAt;
-    return`<div class="vc-stat"><div class="vname"><span style="width:7px;height:7px;border-radius:50%;background:${v.cor};display:inline-block"></span>${v.nome}${importedAt?`<span style="font-size:.55rem;color:var(--ink3);margin-left:4px">· imp. ${importedAt}</span>`:' <span style="font-size:.55rem;color:var(--red)">(sem dados)</span>'}</div><div class="val">${fmt(fat)}</div><div class="sub">Lucro: ${fmt(lucro)} · Meta: ${pct.toFixed(0)}%</div><div class="sub">Pedidos: ${d.pedidos.length} · A receber: ${fmt(pend)}</div><div class="prog-track" style="margin-top:5px"><div class="prog-bar${lucro>=d.META?' done':''}" style="width:${pct}%"></div></div></div>`;
-  }).join('');
-  // top produtos
-  const recProd={};
-  produtos.forEach(p=>recProd[p.id]=0);
-  allPeds.forEach(ped=>ped.itens.forEach(it=>{ recProd[it.prodId]=(recProd[it.prodId]||0)+it.venda*it.qty; }));
-  const byL=Object.entries(recProd).map(([id,r])=>({nome:produtos.find(p=>p.id===id)?.nome||id,r})).sort((a,b)=>b.r-a.r).filter(x=>x.r>0);
-  const maxL=byL[0]?.r||1;
-  document.getElementById('mgrTopProd').innerHTML=byL.slice(0,5).map((x,i)=>`<div class="ri"><span class="rn">${i+1}</span><div style="flex:1"><div class="rnm">${x.nome}</div><div class="bm"><div class="bmf" style="width:${(x.r/maxL*100).toFixed(0)}%"></div></div></div><span class="rv">${fmt(x.r)}</span></div>`).join('')||'<div class="empty"><div class="ico">📦</div>Sem dados importados</div>';
-  // top clientes
-  const cliMap={};
-  allPeds.forEach(p=>{ cliMap[p.cliNome]=(cliMap[p.cliNome]||0)+p.receitaTotal; });
-  const byCli=Object.entries(cliMap).sort((a,b)=>b[1]-a[1]);
-  const maxC=byCli[0]?.[1]||1;
-  document.getElementById('mgrTopCli').innerHTML=byCli.slice(0,5).map(([nome,r],i)=>`<div class="ri"><span class="rn">${i+1}</span><div style="flex:1"><div class="rnm">${nome}</div><div class="bm"><div class="bmf" style="width:${(r/maxC*100).toFixed(0)}%"></div></div></div><span class="rv">${fmt(r)}</span></div>`).join('')||'<div class="empty"><div class="ico">👤</div>Sem dados</div>';
-  // histórico
-  const dotCls={A:'cda',B:'cdb',C:'cdc',novo:'cdn'};
-  const allHist=VENDORS.flatMap(v=>(vd[v.id]?.historico||[]).map(h=>({...h,vNome:v.nome,cor:v.cor})));
-  document.getElementById('mgrHist').innerHTML=allHist.slice(0,8).map((m,i)=>`
-    <div class="hist-block"><div class="hist-hdr"><div class="ttl" style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:${m.cor};display:inline-block"></span>${m.vNome} — ${m.label}</div><div class="vals">Fat <strong>${fmt(m.fat||0)}</strong> · Lucro <strong>${fmt(m.lucro||0)}</strong></div><button class="hist-toggle" onclick="toggleHistMgr(${i})">Ver</button></div>
-    <div class="hist-body" id="mhist-body-${i}">
-      <div class="hist-sub">Top itens</div>
-      ${(m.mix||[]).filter(x=>x.qty>0).slice(0,5).map(x=>`<div class="cv-row"><span class="cdot ${dotCls[x.c]||'cdn'}"></span><span class="rnm">${x.nome}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--amber)">×${x.qty}</span>${cvTag(x.c)}</div>`).join('')||'<div class="empty" style="padding:5px">Sem dados</div>'}
-      <div class="hist-sub">Top clientes</div>
-      ${(m.ranking||[]).slice(0,3).map((r,idx)=>`<div class="ri"><span class="rn">${idx+1}</span><span class="rnm">${r.nome}</span><span class="rv">${fmt(r.receita)}</span></div>`).join('')||'<div class="empty" style="padding:5px">Sem dados</div>'}
-    </div></div>`).join('')||'<div class="empty"><div class="ico">📅</div>Nenhum fechamento ainda.</div>';
-}
+// ════════════ GERÊNCIA ════════════
+function renderGerencia(){ document.getElementById('mgrFilter').innerHTML=[{id:'all',lbl:'Todos'},...VENDORS.map(v=>({id:v.id,lbl:v.nome}))].map(f=>`<button class="mgr-fbtn${mgrFilter===f.id?' active':''}" onclick="setMgrFilter('${f.id}')">${f.lbl}</button>`).join(''); const vids=mgrFilter==='all'?VENDORS.map(v=>v.id):[mgrFilter]; const allPeds=vids.flatMap(id=>vd[id]?.pedidos||[]); document.getElementById('mgrCompare').innerHTML=VENDORS.map(v=>{ const d=vd[v.id]||defVd(); const fat=d.pedidos.reduce((s,p)=>s+p.receitaTotal,0); const lucro=d.pedidos.reduce((s,p)=>s+p.lucroTotal,0); const pend=d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0); const pct=d.META>0?Math.min(100,(lucro/d.META)*100):0; return`<div class="vc-stat"><div class="vname"><span style="width:7px;height:7px;border-radius:50%;background:${v.cor};display:inline-block"></span>${v.nome}</div><div class="val">${fmt(fat)}</div><div class="sub">Lucro: ${fmt(lucro)} · Meta: ${pct.toFixed(0)}%</div><div class="sub">Pedidos: ${d.pedidos.length} · A receber: ${fmt(pend)}</div><div class="prog-track" style="margin-top:5px"><div class="prog-bar${lucro>=d.META?' done':''}" style="width:${pct}%"></div></div></div>`; }).join(''); const recProd={}; produtos.forEach(p=>recProd[p.id]=0); allPeds.forEach(ped=>ped.itens.forEach(it=>{ recProd[it.prodId]=(recProd[it.prodId]||0)+it.venda*it.qty; })); const byL=Object.entries(recProd).map(([id,r])=>({nome:produtos.find(p=>p.id===id)?.nome||id,r})).sort((a,b)=>b.r-a.r).filter(x=>x.r>0); const maxL=byL[0]?.r||1; document.getElementById('mgrTopProd').innerHTML=byL.slice(0,5).map((x,i)=>`<div class="ri"><span class="rn">${i+1}</span><div style="flex:1"><div class="rnm">${x.nome}</div><div class="bm"><div class="bmf" style="width:${(x.r/maxL*100).toFixed(0)}%"></div></div></div><span class="rv">${fmt(x.r)}</span></div>`).join('')||'<div class="empty"><div class="ico">📦</div>Sem vendas</div>'; const cliMap={}; allPeds.forEach(p=>{ cliMap[p.cliNome]=(cliMap[p.cliNome]||0)+p.receitaTotal; }); const byCli=Object.entries(cliMap).sort((a,b)=>b[1]-a[1]); const maxC=byCli[0]?.[1]||1; document.getElementById('mgrTopCli').innerHTML=byCli.slice(0,5).map(([nome,r],i)=>`<div class="ri"><span class="rn">${i+1}</span><div style="flex:1"><div class="rnm">${nome}</div><div class="bm"><div class="bmf" style="width:${(r/maxC*100).toFixed(0)}%"></div></div></div><span class="rv">${fmt(r)}</span></div>`).join('')||'<div class="empty"><div class="ico">👤</div>Sem dados</div>'; const dotCls={A:'cda',B:'cdb',C:'cdc',novo:'cdn'}; const allHist=VENDORS.flatMap(v=>(vd[v.id]?.historico||[]).map(h=>({...h,vNome:v.nome,cor:v.cor}))); document.getElementById('mgrHist').innerHTML=allHist.slice(0,8).map((m,i)=>`<div class="hist-block"><div class="hist-hdr"><div class="ttl" style="display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:${m.cor};display:inline-block"></span>${m.vNome} — ${m.label}</div><div class="vals">Fat <strong>${fmt(m.fat||0)}</strong> · Lucro <strong>${fmt(m.lucro||0)}</strong></div><button class="hist-toggle" onclick="toggleHistMgr(${i})">Ver</button></div><div class="hist-body" id="mhist-body-${i}"><div class="hist-sub">Top itens</div>${(m.mix||[]).filter(x=>x.qty>0).slice(0,5).map(x=>`<div class="cv-row"><span class="cdot ${dotCls[x.c]||'cdn'}"></span><span class="rnm">${x.nome}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--amber)">×${x.qty}</span>${cvTag(x.c)}</div>`).join('')||'<div class="empty" style="padding:5px">Sem dados</div>'}<div class="hist-sub">Top clientes</div>${(m.ranking||[]).slice(0,3).map((r,idx)=>`<div class="ri"><span class="rn">${idx+1}</span><span class="rnm">${r.nome}</span><span class="rv">${fmt(r.receita)}</span></div>`).join('')||'<div class="empty" style="padding:5px">Sem dados</div>'}</div></div>`).join('')||'<div class="empty"><div class="ico">📅</div>Nenhum fechamento.</div>'; }
 function toggleHistMgr(i){ document.getElementById('mhist-body-'+i)?.classList.toggle('show'); }
 function setMgrFilter(id){ mgrFilter=id; renderGerencia(); }
 
-// ════════════════════════════════════════════
-// IA
-// ════════════════════════════════════════════
-function getCtx(){
-  if(isMgr){
-    const s=VENDORS.map(v=>{ const d=vd[v.id]||defVd(); return`${v.nome}: Fat=${fmt(d.pedidos.reduce((s,p)=>s+p.receitaTotal,0))}, Lucro=${fmt(d.pedidos.reduce((s,p)=>s+p.lucroTotal,0))}, Meta=${fmt(d.META)}, Pedidos=${d.pedidos.length}`; }).join('\n');
-    return`Consultora de vendas. Responda em português, direto.\n\nGERÊNCIA:\n${s}\n\nMáx 5 linhas.`;
-  }
-  const d=D();
-  const fat  =d.pedidos.reduce((s,p)=>s+p.receitaTotal,0);
-  const lucro=d.pedidos.reduce((s,p)=>s+p.lucroTotal,0)-(d.custosFixos||0);
-  const pend =d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0);
-  const cv   =calcABC(d.pedidos);
-  const pedS =d.pedidos.slice(0,8).map(p=>`#${p.id} ${p.cliNome} ${p.pgto}|${p.itens.map(it=>`${it.codigo}×${it.qty}`).join(' ')}|${fmt(p.receitaTotal)}`).join('\n');
-  const cvS  =produtos.map(p=>`${p.codigo}: curva ${cv[p.id]||'novo'}, qtd=${d.vendidoQty[p.id]||0}`).join('\n');
-  return`Consultora de vendas. Responda em português, direto.\n\nVENDEDOR: ${currentVendor.nome}\nMeta ${fmt(d.META)}|Fat ${fmt(fat)}|Lucro ${fmt(lucro)}|A receber ${fmt(pend)}\n\nPEDIDOS:\n${pedS||'Nenhum'}\n\nCURVAS:\n${cvS}\n\nMáx 5 linhas.`;
-}
-async function sendIA(){
-  const inp=document.getElementById('iaInp'); const msg=inp.value.trim(); if(!msg)return;
-  addMsg(msg,'usr'); iaHist.push({role:'user',content:msg}); inp.value='';
-  const btn=document.getElementById('iaSend'); btn.disabled=true;
-  const tid=addMsg('<div class="tdots"><span></span><span></span><span></span></div>','thi');
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:getCtx(),messages:iaHist})});
-    const data=await res.json(); remMsg(tid);
-    const reply=data.content?.map(c=>c.text||'').join('')||'Não consegui processar.';
-    iaHist.push({role:'assistant',content:reply}); addMsg(reply,'ast');
-  }catch(e){ remMsg(tid); addMsg('Erro de conexão.','ast'); }
-  btn.disabled=false;
-}
+// ════════════ IA ════════════
+function getCtx(){ if(isMgr){ const s=VENDORS.map(v=>{ const d=vd[v.id]||defVd(); return`${v.nome}: Fat=${fmt(d.pedidos.reduce((s,p)=>s+p.receitaTotal,0))}, Lucro=${fmt(d.pedidos.reduce((s,p)=>s+p.lucroTotal,0))}, Meta=${fmt(d.META)}`; }).join('\n'); return`Consultora de vendas. Português, direto.\n\nGERÊNCIA:\n${s}\n\nMáx 5 linhas.`; } const d=D(); const fat=d.pedidos.reduce((s,p)=>s+p.receitaTotal,0); const lucro=d.pedidos.reduce((s,p)=>s+p.lucroTotal,0)-(d.custosFixos||0); const pend=d.contas.filter(c=>c.status!=='pago').reduce((s,c)=>s+saldoConta(c),0); const cv=calcABC(d.pedidos); const pedS=d.pedidos.slice(0,8).map(p=>`#${p.id} ${p.cliNome} ${p.pgto}|${p.itens.map(it=>`${it.codigo}×${it.qty}`).join(' ')}|${fmt(p.receitaTotal)}`).join('\n'); const cvS=produtos.map(p=>`${p.codigo}: curva ${cv[p.id]||'novo'}, qtd=${d.vendidoQty[p.id]||0}`).join('\n'); return`Consultora de vendas. Português, direto.\n\nVENDEDOR: ${currentVendor.nome}\nMeta ${fmt(d.META)}|Fat ${fmt(fat)}|Lucro ${fmt(lucro)}|A receber ${fmt(pend)}\n\nPEDIDOS:\n${pedS||'Nenhum'}\n\nCURVAS:\n${cvS}\n\nMáx 5 linhas.`; }
+async function sendIA(){ const inp=document.getElementById('iaInp'); const msg=inp.value.trim(); if(!msg)return; addMsg(msg,'usr'); iaHist.push({role:'user',content:msg}); inp.value=''; const btn=document.getElementById('iaSend'); btn.disabled=true; const tid=addMsg('<div class="tdots"><span></span><span></span><span></span></div>','thi'); try{ const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:getCtx(),messages:iaHist})}); const data=await res.json(); remMsg(tid); const reply=data.content?.map(c=>c.text||'').join('')||'Não consegui processar.'; iaHist.push({role:'assistant',content:reply}); addMsg(reply,'ast'); }catch(e){ remMsg(tid); addMsg('Erro de conexão.','ast'); } btn.disabled=false; }
 function qa(q){ document.getElementById('iaInp').value=q; sendIA(); }
 let mid=0;
 function addMsg(html,role){ const id='m'+(++mid); const d=document.createElement('div'); d.className='msg '+role; d.id=id; d.innerHTML=html; const c=document.getElementById('iaMsgs'); c.appendChild(d); c.scrollTop=c.scrollHeight; return id; }
 function remMsg(id){ const el=document.getElementById(id); if(el)el.remove(); }
 
-// ════════════════════════════════════════════
-// PWA
-// ════════════════════════════════════════════
+// ════════════ PWA ════════════
 let deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredPrompt=e; if(!localStorage.getItem('pwa_ok'))document.getElementById('pwaBar').classList.add('show'); });
 window.addEventListener('appinstalled',()=>{ document.getElementById('pwaBar').classList.remove('show'); deferredPrompt=null; });
-document.getElementById('pwaBtn').addEventListener('click',async()=>{
-  if(!deferredPrompt){ alert('Para instalar:\n📱 Safari: Compartilhar → Adicionar à Tela de Início\n🤖 Chrome: Menu ⋮ → Adicionar à tela inicial'); return; }
-  deferredPrompt.prompt(); const{outcome}=await deferredPrompt.userChoice;
-  if(outcome==='accepted'){ document.getElementById('pwaBar').classList.remove('show'); localStorage.setItem('pwa_ok','1'); } deferredPrompt=null;
-});
+document.getElementById('pwaBtn').addEventListener('click',async()=>{ if(!deferredPrompt){ alert('Para instalar:\n📱 Safari: Compartilhar → Adicionar à Tela de Início\n🤖 Chrome: Menu ⋮ → Adicionar à tela inicial'); return; } deferredPrompt.prompt(); const{outcome}=await deferredPrompt.userChoice; if(outcome==='accepted'){ document.getElementById('pwaBar').classList.remove('show'); localStorage.setItem('pwa_ok','1'); } deferredPrompt=null; });
 function dismissPWA(){ document.getElementById('pwaBar').classList.remove('show'); localStorage.setItem('pwa_ok','1'); }
 
-// ════════════════════════════════════════════
-// PRODUTOS PADRÃO
-// ════════════════════════════════════════════
+// ════════════ PRODUTOS PADRÃO ════════════
 function getDefaultProducts(){
   return[
-    // Extensões
     {id:'EXT3',   codigo:'EXT3',   nome:'Extensão 3m',                    segmento:'Elétrico',   custo:7.60,  venda:10.00},
     {id:'EXT5',   codigo:'EXT5',   nome:'Extensão 5m',                    segmento:'Elétrico',   custo:8.90,  venda:14.00},
     {id:'EXT10',  codigo:'EXT10',  nome:'Extensão 10m',                   segmento:'Elétrico',   custo:13.10, venda:22.00},
-    // Elétrico geral
     {id:'BOB001', codigo:'BOB001', nome:'Bob de porcelana',               segmento:'Elétrico',   custo:1.35,  venda:3.00},
     {id:'CAM001', codigo:'CAM001', nome:'Campainha',                      segmento:'Elétrico',   custo:22.00, venda:35.00},
     {id:'PINOT',  codigo:'PINOT',  nome:'Pino T',                        segmento:'Elétrico',   custo:2.15,  venda:3.50},
-    // Ferramentas
     {id:'TRN5M',  codigo:'TRN5M',  nome:'Trena 5m',                      segmento:'Ferramentas',custo:7.00,  venda:10.00},
     {id:'EST120', codigo:'EST120', nome:'Esticador 1,20m',               segmento:'Ferramentas',custo:35.00, venda:50.00},
-    // Outros
     {id:'ZER500', codigo:'ZER500', nome:'Zeroin 500ml',                  segmento:'Outros',     custo:11.50, venda:25.00},
-    // Nivelador 1mm
     {id:'NIV1-750', codigo:'NIV1-750', nome:'Nivelador porcelanato 1mm', segmento:'Construção', custo:5.50,  venda:7.50},
     {id:'NIV1-800', codigo:'NIV1-800', nome:'Nivelador porcelanato 1mm', segmento:'Construção', custo:5.50,  venda:8.00},
     {id:'NIV1-130', codigo:'NIV1-130', nome:'Nivelador porcelanato 1mm', segmento:'Construção', custo:5.50,  venda:13.00},
-    // Nivelador 1,5mm
     {id:'NIV15-750',codigo:'NIV15-750',nome:'Nivelador porcelanato 1,5mm',segmento:'Construção',custo:5.50,  venda:7.50},
     {id:'NIV15-800',codigo:'NIV15-800',nome:'Nivelador porcelanato 1,5mm',segmento:'Construção',custo:5.50,  venda:8.00},
     {id:'NIV15-130',codigo:'NIV15-130',nome:'Nivelador porcelanato 1,5mm',segmento:'Construção',custo:5.50,  venda:13.00},
-    // Nivelador 2mm
     {id:'NIV2-750', codigo:'NIV2-750', nome:'Nivelador porcelanato 2mm', segmento:'Construção', custo:5.50,  venda:7.50},
     {id:'NIV2-800', codigo:'NIV2-800', nome:'Nivelador porcelanato 2mm', segmento:'Construção', custo:5.50,  venda:8.00},
     {id:'NIV2-130', codigo:'NIV2-130', nome:'Nivelador porcelanato 2mm', segmento:'Construção', custo:5.50,  venda:13.00},
-    // Nivelador 3mm
     {id:'NIV3-750', codigo:'NIV3-750', nome:'Nivelador porcelanato 3mm', segmento:'Construção', custo:5.50,  venda:7.50},
     {id:'NIV3-800', codigo:'NIV3-800', nome:'Nivelador porcelanato 3mm', segmento:'Construção', custo:5.50,  venda:8.00},
     {id:'NIV3-130', codigo:'NIV3-130', nome:'Nivelador porcelanato 3mm', segmento:'Construção', custo:5.50,  venda:13.00},
-    // Cunhas
     {id:'CUN-750',  codigo:'CUN-750',  nome:'Cunha p/nivelador',         segmento:'Construção', custo:4.50,  venda:7.50},
     {id:'CUN-800',  codigo:'CUN-800',  nome:'Cunha p/nivelador',         segmento:'Construção', custo:4.50,  venda:8.00},
     {id:'CUN-130',  codigo:'CUN-130',  nome:'Cunha p/nivelador',         segmento:'Construção', custo:4.50,  venda:13.00},
   ];
 }
 
-// ════════════════════════════════════════════
-// CLOCK
-// ════════════════════════════════════════════
+// ════════════ CLOCK ════════════
 function tick(){ const n=new Date(); document.getElementById('clock').textContent=n.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})+'\n'+n.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 setInterval(tick,1000); tick();
 
-// ════════════════════════════════════════════
-// START
-// ════════════════════════════════════════════
-load();
-renderLogin();
-
-// datas padrão
-setTimeout(()=>{
-  const dEl=document.getElementById('pedData'); if(dEl&&!dEl.value)dEl.value=today();
-  const vEl=document.getElementById('pedVenc'); if(vEl&&!vEl.value)vEl.value=today();
-},100);
+// ════════════ START ════════════
+async function start(){
+  await new Promise(res=>{ if(window.DB)res(); else window.addEventListener('fb-ready',res,{once:true}); setTimeout(res,3000); });
+  await loadGlobal();
+  const si=document.getElementById('syncInfo');
+  if(si) si.textContent=fbReady?'☁ Firebase ativo — dados sincronizados em tempo real':'⚠ Usando dados locais';
+  renderLogin();
+  setTimeout(()=>{ const dEl=document.getElementById('pedData'); if(dEl&&!dEl.value)dEl.value=today(); const vEl=document.getElementById('pedVenc'); if(vEl&&!vEl.value)vEl.value=today(); },200);
+}
+start();
 </script>
 </body>
 </html>
